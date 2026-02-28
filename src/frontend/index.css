@@ -1,0 +1,248 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+@layer base {
+  :root {
+    --radius: 0.375rem;
+
+    /* CFO.ai Dark Terminal Theme - OKLCH tokens */
+    --background: 0.118 0.012 255;
+    --foreground: 0.94 0.008 255;
+    --card: 0.148 0.015 255;
+    --card-foreground: 0.94 0.008 255;
+    --popover: 0.165 0.018 255;
+    --popover-foreground: 0.94 0.008 255;
+    --primary: 0.62 0.22 263;
+    --primary-foreground: 0.98 0 0;
+    --secondary: 0.185 0.02 255;
+    --secondary-foreground: 0.82 0.01 255;
+    --muted: 0.175 0.018 255;
+    --muted-foreground: 0.52 0.02 255;
+    --accent: 0.185 0.025 255;
+    --accent-foreground: 0.94 0.008 255;
+    --destructive: 0.57 0.22 22;
+    --destructive-foreground: 0.98 0 0;
+    --border: 0.26 0.03 255;
+    --input: 0.22 0.025 255;
+    --ring: 0.62 0.22 263;
+
+    /* Chart tokens */
+    --chart-1: 0.62 0.22 263;
+    --chart-2: 0.72 0.18 162;
+    --chart-3: 0.78 0.19 75;
+    --chart-4: 0.65 0.24 300;
+    --chart-5: 0.62 0.19 15;
+
+    /* Sidebar tokens */
+    --sidebar: 0.138 0.015 255;
+    --sidebar-foreground: 0.94 0.008 255;
+    --sidebar-primary: 0.62 0.22 263;
+    --sidebar-primary-foreground: 0.98 0 0;
+    --sidebar-accent: 0.178 0.02 255;
+    --sidebar-accent-foreground: 0.94 0.008 255;
+    --sidebar-border: 0.26 0.03 255;
+    --sidebar-ring: 0.62 0.22 263;
+
+    /* Custom semantic tokens */
+    --cfo-teal: 0.72 0.18 180;
+    --cfo-amber: 0.78 0.19 75;
+    --cfo-green: 0.72 0.18 150;
+    --cfo-red: 0.57 0.22 22;
+    --cfo-indigo: 0.62 0.22 263;
+    --cfo-surface: 0.155 0.016 255;
+    --cfo-surface-2: 0.175 0.018 255;
+    --cfo-grid-line: 0.22 0.02 255;
+  }
+
+  .dark {
+    --background: 0.118 0.012 255;
+    --foreground: 0.94 0.008 255;
+    --card: 0.148 0.015 255;
+    --card-foreground: 0.94 0.008 255;
+    --popover: 0.165 0.018 255;
+    --popover-foreground: 0.94 0.008 255;
+    --primary: 0.62 0.22 263;
+    --primary-foreground: 0.98 0 0;
+    --secondary: 0.185 0.02 255;
+    --secondary-foreground: 0.82 0.01 255;
+    --muted: 0.175 0.018 255;
+    --muted-foreground: 0.52 0.02 255;
+    --accent: 0.185 0.025 255;
+    --accent-foreground: 0.94 0.008 255;
+    --destructive: 0.57 0.22 22;
+    --destructive-foreground: 0.98 0 0;
+    --border: 0.26 0.03 255;
+    --input: 0.22 0.025 255;
+    --ring: 0.62 0.22 263;
+    --chart-1: 0.62 0.22 263;
+    --chart-2: 0.72 0.18 162;
+    --chart-3: 0.78 0.19 75;
+    --chart-4: 0.65 0.24 300;
+    --chart-5: 0.62 0.19 15;
+    --sidebar: 0.138 0.015 255;
+    --sidebar-foreground: 0.94 0.008 255;
+    --sidebar-primary: 0.62 0.22 263;
+    --sidebar-primary-foreground: 0.98 0 0;
+    --sidebar-accent: 0.178 0.02 255;
+    --sidebar-accent-foreground: 0.94 0.008 255;
+    --sidebar-border: 0.26 0.03 255;
+    --sidebar-ring: 0.62 0.22 263;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Space Grotesk', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+  }
+
+  code, kbd, pre, .mono {
+    font-family: 'JetBrains Mono', 'Space Mono', monospace;
+  }
+}
+
+@layer utilities {
+  /* Terminal scan line effect */
+  .scan-line {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scan-line::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, oklch(var(--cfo-indigo) / 0.6), transparent);
+    animation: scan 3s linear infinite;
+    pointer-events: none;
+  }
+
+  @keyframes scan {
+    0% { transform: translateY(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(200px); opacity: 0; }
+  }
+
+  /* Grid pattern background */
+  .grid-bg {
+    background-image:
+      linear-gradient(oklch(var(--cfo-grid-line) / 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(var(--cfo-grid-line) / 0.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Section accent borders */
+  .section-border-indigo {
+    border-left: 3px solid oklch(var(--cfo-indigo));
+  }
+  .section-border-teal {
+    border-left: 3px solid oklch(var(--cfo-teal));
+  }
+  .section-border-amber {
+    border-left: 3px solid oklch(var(--cfo-amber));
+  }
+  .section-border-green {
+    border-left: 3px solid oklch(var(--cfo-green));
+  }
+  .section-border-red {
+    border-left: 3px solid oklch(var(--cfo-red));
+  }
+
+  /* Numeric input styling */
+  .num-input {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+  }
+
+  /* Calculated field */
+  .calc-field {
+    background: oklch(var(--cfo-surface));
+    font-style: italic;
+    font-family: 'JetBrains Mono', monospace;
+    color: oklch(var(--cfo-teal));
+    border-color: oklch(var(--cfo-grid-line));
+  }
+
+  /* Zebra table */
+  .table-zebra tr:nth-child(even) td {
+    background: oklch(var(--cfo-surface) / 0.5);
+  }
+
+  /* Stat card glow */
+  .stat-glow-indigo {
+    box-shadow: 0 0 20px oklch(var(--cfo-indigo) / 0.15), inset 0 0 20px oklch(var(--cfo-indigo) / 0.05);
+  }
+  .stat-glow-teal {
+    box-shadow: 0 0 20px oklch(var(--cfo-teal) / 0.15), inset 0 0 20px oklch(var(--cfo-teal) / 0.05);
+  }
+  .stat-glow-amber {
+    box-shadow: 0 0 20px oklch(var(--cfo-amber) / 0.15), inset 0 0 20px oklch(var(--cfo-amber) / 0.05);
+  }
+  .stat-glow-green {
+    box-shadow: 0 0 20px oklch(var(--cfo-green) / 0.15), inset 0 0 20px oklch(var(--cfo-green) / 0.05);
+  }
+
+  /* Fade-in animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeInUp 0.4s ease-out forwards;
+  }
+
+  .animate-fade-in-delay-1 { animation: fadeInUp 0.4s ease-out 0.1s forwards; opacity: 0; }
+  .animate-fade-in-delay-2 { animation: fadeInUp 0.4s ease-out 0.2s forwards; opacity: 0; }
+  .animate-fade-in-delay-3 { animation: fadeInUp 0.4s ease-out 0.3s forwards; opacity: 0; }
+
+  /* Insight card types */
+  .insight-info {
+    background: oklch(var(--cfo-indigo) / 0.1);
+    border-left: 3px solid oklch(var(--cfo-indigo));
+  }
+  .insight-warning {
+    background: oklch(var(--cfo-amber) / 0.1);
+    border-left: 3px solid oklch(var(--cfo-amber));
+  }
+  .insight-success {
+    background: oklch(var(--cfo-green) / 0.1);
+    border-left: 3px solid oklch(var(--cfo-green));
+  }
+  .insight-danger {
+    background: oklch(var(--cfo-red) / 0.1);
+    border-left: 3px solid oklch(var(--cfo-red));
+  }
+
+  /* Print styles */
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white !important; color: black !important; }
+    .sidebar { display: none !important; }
+  }
+
+  .print-only { display: none; }
+}
