@@ -1,7 +1,23 @@
-import { BrainCircuit, LayoutDashboard, BarChart3, FileText, Scale, TrendingUp, Calculator, History, Menu, X, LogIn, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { cn } from "@/lib/utils";
+import {
+  BarChart3,
+  BrainCircuit,
+  Calculator,
+  FileText,
+  History,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Menu,
+  Package,
+  Receipt,
+  Scale,
+  TrendingUp,
+  User,
+  X,
+} from "lucide-react";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 export type PageId =
   | "dashboard"
@@ -10,7 +26,9 @@ export type PageId =
   | "balance-sheet"
   | "cash-flow"
   | "gst"
-  | "history";
+  | "history"
+  | "item-catalog"
+  | "bill-generator";
 
 interface NavItem {
   id: PageId;
@@ -20,13 +38,60 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Command Center", icon: <LayoutDashboard size={16} />, color: "text-cfo-indigo" },
-  { id: "analyst", label: "AI Data Analyst", icon: <BarChart3 size={16} />, color: "text-cfo-teal" },
-  { id: "pl", label: "P&L Statement", icon: <FileText size={16} />, color: "text-cfo-green" },
-  { id: "balance-sheet", label: "Balance Sheet", icon: <Scale size={16} />, color: "text-cfo-amber" },
-  { id: "cash-flow", label: "Cash Flow", icon: <TrendingUp size={16} />, color: "text-cfo-indigo" },
-  { id: "gst", label: "GST Calculator", icon: <Calculator size={16} />, color: "text-cfo-teal" },
-  { id: "history", label: "Report History", icon: <History size={16} />, color: "text-muted-foreground" },
+  {
+    id: "dashboard",
+    label: "Command Center",
+    icon: <LayoutDashboard size={16} />,
+    color: "text-cfo-indigo",
+  },
+  {
+    id: "analyst",
+    label: "AI Data Analyst",
+    icon: <BarChart3 size={16} />,
+    color: "text-cfo-teal",
+  },
+  {
+    id: "pl",
+    label: "P&L Statement",
+    icon: <FileText size={16} />,
+    color: "text-cfo-green",
+  },
+  {
+    id: "balance-sheet",
+    label: "Balance Sheet",
+    icon: <Scale size={16} />,
+    color: "text-cfo-amber",
+  },
+  {
+    id: "cash-flow",
+    label: "Cash Flow",
+    icon: <TrendingUp size={16} />,
+    color: "text-cfo-indigo",
+  },
+  {
+    id: "gst",
+    label: "GST Calculator",
+    icon: <Calculator size={16} />,
+    color: "text-cfo-teal",
+  },
+  {
+    id: "history",
+    label: "Report History",
+    icon: <History size={16} />,
+    color: "text-muted-foreground",
+  },
+  {
+    id: "item-catalog",
+    label: "Item Catalog",
+    icon: <Package size={16} />,
+    color: "text-cfo-amber",
+  },
+  {
+    id: "bill-generator",
+    label: "Bill Generator",
+    icon: <Receipt size={16} />,
+    color: "text-cfo-green",
+  },
 ];
 
 interface SidebarProps {
@@ -36,11 +101,18 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProps) {
+export function Sidebar({
+  currentPage,
+  onNavigate,
+  open,
+  onToggle,
+}: SidebarProps) {
   const { login, clear, loginStatus, identity } = useInternetIdentity();
   const isLoggedIn = !!identity;
   const principal = identity?.getPrincipal().toString();
-  const shortPrincipal = principal ? `${principal.slice(0, 5)}...${principal.slice(-4)}` : "";
+  const shortPrincipal = principal
+    ? `${principal.slice(0, 5)}...${principal.slice(-4)}`
+    : "";
 
   return (
     <>
@@ -61,7 +133,7 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
           "bg-sidebar border-r border-sidebar-border",
           "transition-transform duration-300 ease-in-out",
           "lg:translate-x-0 lg:static lg:z-auto",
-          open ? "translate-x-0" : "-translate-x-full"
+          open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo */}
@@ -74,8 +146,12 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cfo-green animate-pulse" />
             </div>
             <div>
-              <div className="text-base font-display font-bold text-foreground tracking-tight">CFO.ai</div>
-              <div className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase">Intelligence Suite</div>
+              <div className="text-base font-display font-bold text-foreground tracking-tight">
+                CFO.ai
+              </div>
+              <div className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase">
+                Intelligence Suite
+              </div>
             </div>
           </div>
           <button
@@ -91,7 +167,9 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
           <div className="mb-2 px-2">
-            <span className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase">Navigation</span>
+            <span className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase">
+              Navigation
+            </span>
           </div>
           <ul className="space-y-1">
             {NAV_ITEMS.map((item) => {
@@ -100,6 +178,7 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
                 <li key={item.id}>
                   <button
                     type="button"
+                    data-ocid={`nav.${item.id}.link`}
                     onClick={() => {
                       onNavigate(item.id);
                       if (open) onToggle();
@@ -109,13 +188,18 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
                       "transition-all duration-150 group relative",
                       isActive
                         ? "bg-cfo-indigo/15 text-foreground"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                     )}
                   >
                     {isActive && (
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-cfo-indigo rounded-full" />
                     )}
-                    <span className={cn(isActive ? "text-cfo-indigo" : item.color, "transition-colors")}>
+                    <span
+                      className={cn(
+                        isActive ? "text-cfo-indigo" : item.color,
+                        "transition-colors",
+                      )}
+                    >
                       {item.icon}
                     </span>
                     <span className="truncate">{item.label}</span>
@@ -139,7 +223,9 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
                 <User size={12} className="text-cfo-indigo" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-mono text-foreground truncate">{shortPrincipal}</div>
+                <div className="text-xs font-mono text-foreground truncate">
+                  {shortPrincipal}
+                </div>
                 <div className="text-[10px] text-cfo-green">● Connected</div>
               </div>
               <Button
@@ -161,15 +247,17 @@ export function Sidebar({ currentPage, onNavigate, open, onToggle }: SidebarProp
               disabled={loginStatus === "logging-in"}
             >
               <LogIn size={12} />
-              {loginStatus === "logging-in" ? "Connecting..." : "Connect Wallet"}
+              {loginStatus === "logging-in"
+                ? "Connecting..."
+                : "Connect Wallet"}
             </Button>
           )}
 
           <div className="px-2 text-[10px] text-muted-foreground leading-relaxed">
-            © 2026. Built with{" "}
-            <span className="text-cfo-red">♥</span>{" "}using{" "}
+            © {new Date().getFullYear()}. Built with{" "}
+            <span className="text-cfo-red">♥</span> using{" "}
             <a
-              href="https://caffeine.ai"
+              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-cfo-indigo hover:underline"

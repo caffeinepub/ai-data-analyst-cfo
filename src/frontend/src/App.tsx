@@ -1,13 +1,15 @@
-import { useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
-import { Sidebar, type PageId } from "./components/Sidebar";
+import { useState } from "react";
+import { type PageId, Sidebar } from "./components/Sidebar";
+import { BalanceSheetPage } from "./components/pages/BalanceSheetPage";
+import { BillGeneratorPage } from "./components/pages/BillGeneratorPage";
+import { CashFlowPage } from "./components/pages/CashFlowPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { DataAnalystPage } from "./components/pages/DataAnalystPage";
-import { PLPage } from "./components/pages/PLPage";
-import { BalanceSheetPage } from "./components/pages/BalanceSheetPage";
-import { CashFlowPage } from "./components/pages/CashFlowPage";
 import { GSTPage } from "./components/pages/GSTPage";
 import { HistoryPage } from "./components/pages/HistoryPage";
+import { ItemCatalogPage } from "./components/pages/ItemCatalogPage";
+import { PLPage } from "./components/pages/PLPage";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>("dashboard");
@@ -29,6 +31,10 @@ export default function App() {
         return <GSTPage />;
       case "history":
         return <HistoryPage />;
+      case "item-catalog":
+        return <ItemCatalogPage />;
+      case "bill-generator":
+        return <BillGeneratorPage />;
       default:
         return <DashboardPage onNavigate={setCurrentPage} />;
     }
@@ -41,15 +47,13 @@ export default function App() {
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         open={sidebarOpen}
-        onToggle={() => setSidebarOpen(prev => !prev)}
+        onToggle={() => setSidebarOpen((prev) => !prev)}
       />
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto min-w-0">
         {/* Mobile top pad for hamburger button */}
-        <div className="pt-14 lg:pt-0">
-          {renderPage()}
-        </div>
+        <div className="pt-14 lg:pt-0">{renderPage()}</div>
       </main>
 
       <Toaster

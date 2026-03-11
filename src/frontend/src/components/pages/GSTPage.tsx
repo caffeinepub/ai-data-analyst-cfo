@@ -1,15 +1,21 @@
-import { useState, useCallback } from "react";
-import { Calculator, Plus, Trash2, Save, Printer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import { Calculator, Loader2, Plus, Printer, Save, Trash2 } from "lucide-react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
 import { formatCurrency } from "../../utils/formatters";
-import { cn } from "@/lib/utils";
 
 interface GSTItem {
   id: string;
@@ -20,17 +26,18 @@ interface GSTItem {
 
 const GST_RATES = ["5", "10", "12", "15", "18", "20", "28"];
 
-function n(s: string) { return parseFloat(s.replace(/[$,%]/g, "")) || 0; }
+function n(s: string) {
+  return Number.parseFloat(s.replace(/[$,%]/g, "")) || 0;
+}
 
 function calcGST(amount: number, rate: number, isInclusive: boolean) {
   if (isInclusive) {
     const baseAmount = amount / (1 + rate / 100);
     const gstAmount = amount - baseAmount;
     return { baseAmount, gstAmount, totalAmount: amount };
-  } else {
-    const gstAmount = (amount * rate) / 100;
-    return { baseAmount: amount, gstAmount, totalAmount: amount + gstAmount };
   }
+  const gstAmount = (amount * rate) / 100;
+  return { baseAmount: amount, gstAmount, totalAmount: amount + gstAmount };
 }
 
 export function GSTPage() {
@@ -48,27 +55,55 @@ export function GSTPage() {
 
   const effectiveRate = gstRate === "custom" ? n(customRate) : n(gstRate);
   const inputAmount = n(amount);
-  const { baseAmount, gstAmount, totalAmount } = calcGST(inputAmount, effectiveRate, isInclusive);
+  const { baseAmount, gstAmount, totalAmount } = calcGST(
+    inputAmount,
+    effectiveRate,
+    isInclusive,
+  );
   const cgst = gstAmount / 2;
   const sgst = gstAmount / 2;
 
   const addItem = () => {
-    setItems(prev => [...prev, { id: crypto.randomUUID(), name: `Item ${prev.length + 1}`, amount: "", rate: "18" }]);
+    setItems((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        name: `Item ${prev.length + 1}`,
+        amount: "",
+        rate: "18",
+      },
+    ]);
   };
 
   const removeItem = useCallback((id: string) => {
-    setItems(prev => prev.filter(item => item.id !== id));
+    setItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  const updateItem = useCallback((id: string, field: keyof GSTItem, value: string) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
-  }, []);
+  const updateItem = useCallback(
+    (id: string, field: keyof GSTItem, value: string) => {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, [field]: value } : item,
+        ),
+      );
+    },
+    [],
+  );
 
-  const itemsWithCalc = items.map(item => {
+  const itemsWithCalc = items.map((item) => {
     const itemAmt = n(item.amount);
     const itemRate = n(item.rate);
-    const { gstAmount: itemGst, totalAmount: itemTotal } = calcGST(itemAmt, itemRate, false);
-    return { ...item, gstAmount: itemGst, totalAmount: itemTotal, baseAmount: itemAmt };
+    const { gstAmount: itemGst, totalAmount: itemTotal } = calcGST(
+      itemAmt,
+      itemRate,
+      false,
+    );
+    return {
+      ...item,
+      gstAmount: itemGst,
+      totalAmount: itemTotal,
+      baseAmount: itemAmt,
+    };
   });
 
   const bulkTotals = itemsWithCalc.reduce(
@@ -77,17 +112,37 @@ export function GSTPage() {
       gst: acc.gst + item.gstAmount,
       total: acc.total + item.totalAmount,
     }),
-    { base: 0, gst: 0, total: 0 }
+    { base: 0, gst: 0, total: 0 },
   );
 
   const handleSave = async () => {
     const id = crypto.randomUUID();
     const name = `GST Calculation - ${effectiveRate}%`;
-    const formData = JSON.stringify({ amount, gstRate: effectiveRate, isInclusive, items });
-    const results = JSON.stringify({ baseAmount, gstAmount, totalAmount, bulkTotals });
+    const formData = JSON.stringify({
+      amount,
+      gstRate: effectiveRate,
+      isInclusive,
+      items,
+    });
+    const results = JSON.stringify({
+      baseAmount,
+      gstAmount,
+      totalAmount,
+      bulkTotals,
+    });
     toast.promise(
-      createReport.mutateAsync({ id, name, reportType: ReportType.gst, formData, results }),
-      { loading: "Saving...", success: "GST report saved!", error: "Failed to save" }
+      createReport.mutateAsync({
+        id,
+        name,
+        reportType: ReportType.gst,
+        formData,
+        results,
+      }),
+      {
+        loading: "Saving...",
+        success: "GST report saved!",
+        error: "Failed to save",
+      },
     );
   };
 
@@ -98,16 +153,35 @@ export function GSTPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Calculator size={14} className="text-cfo-teal" />
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Tax Calculator</span>
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              Tax Calculator
+            </span>
           </div>
-          <h1 className="text-2xl lg:text-3xl font-display font-bold text-foreground tracking-tight">GST Calculator</h1>
+          <h1 className="text-2xl lg:text-3xl font-display font-bold text-foreground tracking-tight">
+            GST Calculator
+          </h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2 text-xs no-print">
-            <Printer size={13} />Print
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="gap-2 text-xs no-print"
+          >
+            <Printer size={13} />
+            Print
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={createReport.isPending} className="gap-2 text-xs bg-cfo-indigo hover:bg-cfo-indigo/90 text-white">
-            {createReport.isPending ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={createReport.isPending}
+            className="gap-2 text-xs bg-cfo-indigo hover:bg-cfo-indigo/90 text-white"
+          >
+            {createReport.isPending ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Save size={13} />
+            )}
             Save
           </Button>
         </div>
@@ -117,17 +191,24 @@ export function GSTPage() {
         {/* Quick Calculator */}
         <div className="bg-card border border-border rounded-lg p-5 space-y-5">
           <div className="border-l-2 border-l-cfo-teal pl-3">
-            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Quick Calculator</span>
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+              Quick Calculator
+            </span>
           </div>
 
           {/* Amount Input */}
           <div className="space-y-1.5">
-            <Label htmlFor="gst-amount" className="text-xs font-mono text-muted-foreground">Amount</Label>
+            <Label
+              htmlFor="gst-amount"
+              className="text-xs font-mono text-muted-foreground"
+            >
+              Amount
+            </Label>
             <Input
               id="gst-amount"
               type="number"
               value={amount}
-              onChange={e => setAmount(e.target.value)}
+              onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
               className="num-input bg-input border-border h-10 text-base"
               min="0"
@@ -137,9 +218,11 @@ export function GSTPage() {
 
           {/* GST Rate */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-mono text-muted-foreground">GST Rate (%)</Label>
+            <Label className="text-xs font-mono text-muted-foreground">
+              GST Rate (%)
+            </Label>
             <div className="flex flex-wrap gap-2">
-              {GST_RATES.map(rate => (
+              {GST_RATES.map((rate) => (
                 <button
                   key={rate}
                   type="button"
@@ -148,7 +231,7 @@ export function GSTPage() {
                     "px-3 py-1.5 rounded-md text-xs font-mono font-semibold border transition-all",
                     gstRate === rate && gstRate !== "custom"
                       ? "bg-cfo-indigo/20 border-cfo-indigo text-cfo-indigo"
-                      : "bg-secondary border-border text-muted-foreground hover:border-cfo-indigo/50"
+                      : "bg-secondary border-border text-muted-foreground hover:border-cfo-indigo/50",
                   )}
                 >
                   {rate}%
@@ -161,7 +244,7 @@ export function GSTPage() {
                   "px-3 py-1.5 rounded-md text-xs font-mono font-semibold border transition-all",
                   gstRate === "custom"
                     ? "bg-cfo-amber/20 border-cfo-amber text-cfo-amber"
-                    : "bg-secondary border-border text-muted-foreground hover:border-cfo-amber/50"
+                    : "bg-secondary border-border text-muted-foreground hover:border-cfo-amber/50",
                 )}
               >
                 Custom
@@ -171,7 +254,7 @@ export function GSTPage() {
               <Input
                 type="number"
                 value={customRate}
-                onChange={e => setCustomRate(e.target.value)}
+                onChange={(e) => setCustomRate(e.target.value)}
                 placeholder="Enter custom rate"
                 className="num-input bg-input border-border h-9 text-sm mt-2"
                 min="0"
@@ -185,9 +268,13 @@ export function GSTPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">
               <div>
-                <div className="text-xs font-medium text-foreground">Amount is inclusive of GST</div>
+                <div className="text-xs font-medium text-foreground">
+                  Amount is inclusive of GST
+                </div>
                 <div className="text-[10px] text-muted-foreground font-mono">
-                  {isInclusive ? "GST included in amount" : "GST will be added to amount"}
+                  {isInclusive
+                    ? "GST included in amount"
+                    : "GST will be added to amount"}
                 </div>
               </div>
               <Switch checked={isInclusive} onCheckedChange={setIsInclusive} />
@@ -195,22 +282,32 @@ export function GSTPage() {
 
             <div className="flex items-center justify-between p-3 rounded-md bg-secondary/30 border border-border">
               <div>
-                <div className="text-xs font-medium text-foreground">Indian GST Mode (CGST + SGST)</div>
+                <div className="text-xs font-medium text-foreground">
+                  Indian GST Mode (CGST + SGST)
+                </div>
                 <div className="text-[10px] text-muted-foreground font-mono">
                   Split GST into CGST and SGST components
                 </div>
               </div>
-              <Switch checked={isIndianMode} onCheckedChange={setIsIndianMode} />
+              <Switch
+                checked={isIndianMode}
+                onCheckedChange={setIsIndianMode}
+              />
             </div>
           </div>
 
           {/* HSN Code */}
           <div className="space-y-1.5">
-            <Label htmlFor="hsn" className="text-xs font-mono text-muted-foreground">HSN / SAC Code (Optional)</Label>
+            <Label
+              htmlFor="hsn"
+              className="text-xs font-mono text-muted-foreground"
+            >
+              HSN / SAC Code (Optional)
+            </Label>
             <Input
               id="hsn"
               value={hsnCode}
-              onChange={e => setHsnCode(e.target.value)}
+              onChange={(e) => setHsnCode(e.target.value)}
               placeholder="e.g. 8471 for computers"
               className="bg-input border-border h-9 text-xs"
             />
@@ -219,16 +316,42 @@ export function GSTPage() {
           {/* Results */}
           <div className="space-y-2 pt-2 border-t border-border">
             {[
-              { label: "Base Amount", value: baseAmount, color: "text-foreground" },
-              { label: `GST Amount (${effectiveRate}%)`, value: gstAmount, color: "text-cfo-amber" },
-              { label: "Total Amount (with GST)", value: totalAmount, color: "text-cfo-green", large: true },
+              {
+                label: "Base Amount",
+                value: baseAmount,
+                color: "text-foreground",
+              },
+              {
+                label: `GST Amount (${effectiveRate}%)`,
+                value: gstAmount,
+                color: "text-cfo-amber",
+              },
+              {
+                label: "Total Amount (with GST)",
+                value: totalAmount,
+                color: "text-cfo-green",
+                large: true,
+              },
             ].map(({ label, value, color, large }) => (
-              <div key={label} className={cn(
-                "flex justify-between items-center px-4 py-2.5 rounded-md",
-                large ? "bg-cfo-green/10 border border-cfo-green/30" : "bg-secondary/30"
-              )}>
-                <span className="text-xs font-mono text-muted-foreground">{label}</span>
-                <span className={cn("font-mono font-bold", large ? "text-lg" : "text-sm", color)}>
+              <div
+                key={label}
+                className={cn(
+                  "flex justify-between items-center px-4 py-2.5 rounded-md",
+                  large
+                    ? "bg-cfo-green/10 border border-cfo-green/30"
+                    : "bg-secondary/30",
+                )}
+              >
+                <span className="text-xs font-mono text-muted-foreground">
+                  {label}
+                </span>
+                <span
+                  className={cn(
+                    "font-mono font-bold",
+                    large ? "text-lg" : "text-sm",
+                    color,
+                  )}
+                >
                   {formatCurrency(value)}
                 </span>
               </div>
@@ -236,23 +359,37 @@ export function GSTPage() {
 
             {isIndianMode && (
               <div className="mt-3 p-3 rounded-md bg-cfo-indigo/10 border border-cfo-indigo/20">
-                <div className="text-[10px] font-mono text-cfo-indigo uppercase tracking-wider mb-2">Indian GST Breakdown</div>
+                <div className="text-[10px] font-mono text-cfo-indigo uppercase tracking-wider mb-2">
+                  Indian GST Breakdown
+                </div>
                 <div className="space-y-1.5 text-xs font-mono">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">CGST ({(effectiveRate / 2).toFixed(1)}%)</span>
-                    <span className="text-cfo-indigo">{formatCurrency(cgst)}</span>
+                    <span className="text-muted-foreground">
+                      CGST ({Math.round(effectiveRate / 2)}%)
+                    </span>
+                    <span className="text-cfo-indigo">
+                      {formatCurrency(cgst)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">SGST ({(effectiveRate / 2).toFixed(1)}%)</span>
-                    <span className="text-cfo-indigo">{formatCurrency(sgst)}</span>
+                    <span className="text-muted-foreground">
+                      SGST ({Math.round(effectiveRate / 2)}%)
+                    </span>
+                    <span className="text-cfo-indigo">
+                      {formatCurrency(sgst)}
+                    </span>
                   </div>
                   <div className="flex justify-between border-t border-border/50 pt-1.5">
                     <span className="font-semibold">Total GST</span>
-                    <span className="font-semibold text-cfo-amber">{formatCurrency(gstAmount)}</span>
+                    <span className="font-semibold text-cfo-amber">
+                      {formatCurrency(gstAmount)}
+                    </span>
                   </div>
                   {hsnCode && (
                     <div className="flex justify-between text-[10px]">
-                      <span className="text-muted-foreground">HSN/SAC Code</span>
+                      <span className="text-muted-foreground">
+                        HSN/SAC Code
+                      </span>
                       <span className="text-foreground">{hsnCode}</span>
                     </div>
                   )}
@@ -266,9 +403,16 @@ export function GSTPage() {
         <div className="bg-card border border-border rounded-lg p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div className="border-l-2 border-l-cfo-amber pl-3">
-              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Bulk Calculator</span>
+              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                Bulk Calculator
+              </span>
             </div>
-            <Button size="sm" variant="outline" onClick={addItem} className="gap-1.5 text-xs h-7">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={addItem}
+              className="gap-1.5 text-xs h-7"
+            >
               <Plus size={11} />
               Add Item
             </Button>
@@ -278,21 +422,36 @@ export function GSTPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-secondary/50 border-b border-border">
-                  <th className="px-2 py-2 text-left font-mono text-muted-foreground">Item Name</th>
-                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">Amount</th>
-                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">Rate</th>
-                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">GST</th>
-                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">Total</th>
-                  <th className="px-2 py-2"></th>
+                  <th className="px-2 py-2 text-left font-mono text-muted-foreground">
+                    Item Name
+                  </th>
+                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">
+                    Amount
+                  </th>
+                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">
+                    Rate
+                  </th>
+                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">
+                    GST
+                  </th>
+                  <th className="px-2 py-2 text-right font-mono text-muted-foreground">
+                    Total
+                  </th>
+                  <th className="px-2 py-2" />
                 </tr>
               </thead>
               <tbody>
                 {itemsWithCalc.map((item) => (
-                  <tr key={item.id} className="border-b border-border/50 hover:bg-secondary/20">
+                  <tr
+                    key={item.id}
+                    className="border-b border-border/50 hover:bg-secondary/20"
+                  >
                     <td className="px-2 py-1.5">
                       <Input
                         value={item.name}
-                        onChange={e => updateItem(item.id, "name", e.target.value)}
+                        onChange={(e) =>
+                          updateItem(item.id, "name", e.target.value)
+                        }
                         className="h-6 text-xs bg-transparent border-0 p-0 focus:ring-0 font-medium"
                       />
                     </td>
@@ -300,7 +459,9 @@ export function GSTPage() {
                       <Input
                         type="number"
                         value={item.amount}
-                        onChange={e => updateItem(item.id, "amount", e.target.value)}
+                        onChange={(e) =>
+                          updateItem(item.id, "amount", e.target.value)
+                        }
                         placeholder="0.00"
                         className="h-6 text-xs num-input bg-transparent border-0 p-0 w-20"
                         min="0"
@@ -308,17 +469,28 @@ export function GSTPage() {
                       />
                     </td>
                     <td className="px-2 py-1.5">
-                      <Select value={item.rate} onValueChange={v => updateItem(item.id, "rate", v)}>
+                      <Select
+                        value={item.rate}
+                        onValueChange={(v) => updateItem(item.id, "rate", v)}
+                      >
                         <SelectTrigger className="h-6 w-16 text-xs bg-transparent border-border/50">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {GST_RATES.map(r => <SelectItem key={r} value={r}>{r}%</SelectItem>)}
+                          {GST_RATES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {r}%
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-2 py-1.5 text-right font-mono text-cfo-amber">{formatCurrency(item.gstAmount)}</td>
-                    <td className="px-2 py-1.5 text-right font-mono font-semibold">{formatCurrency(item.totalAmount)}</td>
+                    <td className="px-2 py-1.5 text-right font-mono text-cfo-amber">
+                      {formatCurrency(item.gstAmount)}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono font-semibold">
+                      {formatCurrency(item.totalAmount)}
+                    </td>
                     <td className="px-2 py-1.5">
                       <button
                         type="button"
@@ -334,13 +506,22 @@ export function GSTPage() {
               </tbody>
               <tfoot>
                 <tr className="bg-secondary/50 border-t border-border">
-                  <td className="px-2 py-2 font-mono font-semibold text-foreground" colSpan={2}>
+                  <td
+                    className="px-2 py-2 font-mono font-semibold text-foreground"
+                    colSpan={2}
+                  >
                     Total ({items.length} items)
                   </td>
-                  <td className="px-2 py-2 text-right font-mono text-muted-foreground">{formatCurrency(bulkTotals.base)}</td>
-                  <td className="px-2 py-2 text-right font-mono font-semibold text-cfo-amber">{formatCurrency(bulkTotals.gst)}</td>
-                  <td className="px-2 py-2 text-right font-mono font-bold text-cfo-green">{formatCurrency(bulkTotals.total)}</td>
-                  <td></td>
+                  <td className="px-2 py-2 text-right font-mono text-muted-foreground">
+                    {formatCurrency(bulkTotals.base)}
+                  </td>
+                  <td className="px-2 py-2 text-right font-mono font-semibold text-cfo-amber">
+                    {formatCurrency(bulkTotals.gst)}
+                  </td>
+                  <td className="px-2 py-2 text-right font-mono font-bold text-cfo-green">
+                    {formatCurrency(bulkTotals.total)}
+                  </td>
+                  <td />
                 </tr>
               </tfoot>
             </table>
@@ -348,19 +529,36 @@ export function GSTPage() {
 
           {/* Invoice Summary */}
           <div className="mt-4 border-t border-border pt-4">
-            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-3">Invoice Summary</div>
+            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-3">
+              Invoice Summary
+            </div>
             <div className="rounded-md border border-border overflow-hidden">
               <div className="px-4 py-2.5 bg-cfo-indigo/10 border-b border-border flex justify-between items-center">
-                <span className="text-xs font-display font-semibold text-cfo-indigo uppercase tracking-wider">Tax Invoice</span>
-                <span className="text-[10px] font-mono text-muted-foreground">{new Date().toLocaleDateString()}</span>
+                <span className="text-xs font-display font-semibold text-cfo-indigo uppercase tracking-wider">
+                  Tax Invoice
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {new Date().toLocaleDateString()}
+                </span>
               </div>
               <div className="px-4 py-3 space-y-2 text-xs font-mono">
-                {itemsWithCalc.map(item => (
-                  <div key={item.id} className="flex justify-between text-muted-foreground">
-                    <span className="flex-1 truncate">{item.name || "Unnamed Item"}</span>
-                    <span className="ml-4">{formatCurrency(item.baseAmount)}</span>
-                    <span className="ml-2 text-cfo-amber">+{item.rate}% GST</span>
-                    <span className="ml-4 font-semibold text-foreground">{formatCurrency(item.totalAmount)}</span>
+                {itemsWithCalc.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between text-muted-foreground"
+                  >
+                    <span className="flex-1 truncate">
+                      {item.name || "Unnamed Item"}
+                    </span>
+                    <span className="ml-4">
+                      {formatCurrency(item.baseAmount)}
+                    </span>
+                    <span className="ml-2 text-cfo-amber">
+                      +{item.rate}% GST
+                    </span>
+                    <span className="ml-4 font-semibold text-foreground">
+                      {formatCurrency(item.totalAmount)}
+                    </span>
                   </div>
                 ))}
                 <div className="border-t border-border pt-2 space-y-1">

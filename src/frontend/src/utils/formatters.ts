@@ -1,15 +1,15 @@
-export function formatCurrency(value: number | string, symbol = "$"): string {
-  const n = typeof value === "string" ? parseFloat(value) || 0 : value;
-  return `${symbol}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export function formatCurrency(value: number | string, symbol = "₹"): string {
+  const n = typeof value === "string" ? Number.parseFloat(value) || 0 : value;
+  return `${symbol}${Math.round(Math.abs(n)).toLocaleString("en-IN")}`;
 }
 
 export function formatNumber(value: number | string): string {
-  const n = typeof value === "string" ? parseFloat(value) || 0 : value;
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const n = typeof value === "string" ? Number.parseFloat(value) || 0 : value;
+  return Math.round(n).toLocaleString("en-IN");
 }
 
 export function formatPct(value: number): string {
-  return `${value.toFixed(2)}%`;
+  return `${Math.round(value)}%`;
 }
 
 export function formatDate(timestamp: bigint): string {
@@ -33,5 +33,5 @@ export function formatDatetime(timestamp: bigint): string {
 }
 
 export function parseInputNum(val: string): number {
-  return parseFloat(val.replace(/[$,%,]/g, "")) || 0;
+  return Number.parseFloat(val.replace(/[$,%,]/g, "")) || 0;
 }

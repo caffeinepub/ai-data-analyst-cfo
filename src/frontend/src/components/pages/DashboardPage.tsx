@@ -1,14 +1,32 @@
-import { FileText, Scale, TrendingUp, Calculator, BarChart3, ArrowRight, Clock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetDashboardStats, useGetAllReportSessions, useGetAllDatasetSessions } from "../../hooks/useQueries";
+import { cn } from "@/lib/utils";
+import {
+  ArrowRight,
+  BarChart3,
+  Calculator,
+  Clock,
+  FileText,
+  Scale,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import {
+  useGetAllDatasetSessions,
+  useGetAllReportSessions,
+  useGetDashboardStats,
+} from "../../hooks/useQueries";
 import { formatDatetime } from "../../utils/formatters";
 import type { PageId } from "../Sidebar";
-import { cn } from "@/lib/utils";
 
 interface StatCard {
   label: string;
-  key: "plCount" | "balanceSheetCount" | "cashFlowCount" | "gstCount" | "dataAnalysisCount";
+  key:
+    | "plCount"
+    | "balanceSheetCount"
+    | "cashFlowCount"
+    | "gstCount"
+    | "dataAnalysisCount";
   icon: React.ReactNode;
   color: string;
   glowClass: string;
@@ -98,14 +116,14 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   // Combine and sort recent activity
   const recentActivity = [
-    ...reportSessions.map(s => ({
+    ...reportSessions.map((s) => ({
       id: s.id,
       name: s.name,
       type: s.reportType as string,
       updatedAt: s.updatedAt,
       isDataset: false,
     })),
-    ...datasetSessions.map(s => ({
+    ...datasetSessions.map((s) => ({
       id: s.id,
       name: s.name,
       type: "data_analysis",
@@ -113,15 +131,45 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       isDataset: true,
     })),
   ]
-    .sort((a, b) => (Number(b.updatedAt) - Number(a.updatedAt)))
+    .sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt))
     .slice(0, 7);
 
   const QUICK_ACTIONS = [
-    { label: "New Analysis", icon: <BarChart3 size={14} />, page: "analyst" as PageId, color: "border-cfo-indigo/40 hover:bg-cfo-indigo/10 hover:border-cfo-indigo/60 text-cfo-indigo" },
-    { label: "New P&L", icon: <FileText size={14} />, page: "pl" as PageId, color: "border-cfo-green/40 hover:bg-cfo-green/10 hover:border-cfo-green/60 text-cfo-green" },
-    { label: "Balance Sheet", icon: <Scale size={14} />, page: "balance-sheet" as PageId, color: "border-cfo-amber/40 hover:bg-cfo-amber/10 hover:border-cfo-amber/60 text-cfo-amber" },
-    { label: "Cash Flow", icon: <TrendingUp size={14} />, page: "cash-flow" as PageId, color: "border-cfo-indigo/40 hover:bg-cfo-indigo/10 hover:border-cfo-indigo/60 text-cfo-indigo" },
-    { label: "GST Calc", icon: <Calculator size={14} />, page: "gst" as PageId, color: "border-cfo-teal/40 hover:bg-cfo-teal/10 hover:border-cfo-teal/60 text-cfo-teal" },
+    {
+      label: "New Analysis",
+      icon: <BarChart3 size={14} />,
+      page: "analyst" as PageId,
+      color:
+        "border-cfo-indigo/40 hover:bg-cfo-indigo/10 hover:border-cfo-indigo/60 text-cfo-indigo",
+    },
+    {
+      label: "New P&L",
+      icon: <FileText size={14} />,
+      page: "pl" as PageId,
+      color:
+        "border-cfo-green/40 hover:bg-cfo-green/10 hover:border-cfo-green/60 text-cfo-green",
+    },
+    {
+      label: "Balance Sheet",
+      icon: <Scale size={14} />,
+      page: "balance-sheet" as PageId,
+      color:
+        "border-cfo-amber/40 hover:bg-cfo-amber/10 hover:border-cfo-amber/60 text-cfo-amber",
+    },
+    {
+      label: "Cash Flow",
+      icon: <TrendingUp size={14} />,
+      page: "cash-flow" as PageId,
+      color:
+        "border-cfo-indigo/40 hover:bg-cfo-indigo/10 hover:border-cfo-indigo/60 text-cfo-indigo",
+    },
+    {
+      label: "GST Calc",
+      icon: <Calculator size={14} />,
+      page: "gst" as PageId,
+      color:
+        "border-cfo-teal/40 hover:bg-cfo-teal/10 hover:border-cfo-teal/60 text-cfo-teal",
+    },
   ];
 
   return (
@@ -131,12 +179,16 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Zap size={14} className="text-cfo-amber" />
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Live Dashboard</span>
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              Live Dashboard
+            </span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-display font-bold text-foreground tracking-tight">
             Command Center
           </h1>
-          <p className="text-sm text-muted-foreground mt-1 font-mono">{today}</p>
+          <p className="text-sm text-muted-foreground mt-1 font-mono">
+            {today}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {QUICK_ACTIONS.map((action) => (
@@ -147,7 +199,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium",
                 "border transition-all duration-150",
-                action.color
+                action.color,
               )}
             >
               {action.icon}
@@ -169,14 +221,24 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               "hover:border-border/80 transition-all duration-200 cursor-pointer",
               "border-l-2",
               card.borderClass,
-              i === 0 ? "animate-fade-in" : `animate-fade-in-delay-${Math.min(i, 3)}`
+              i === 0
+                ? "animate-fade-in"
+                : `animate-fade-in-delay-${Math.min(i, 3)}`,
             )}
           >
             <div className="flex items-center justify-between mb-3">
-              <div className={cn("w-8 h-8 rounded-md flex items-center justify-center", `bg-${card.color.replace("text-", "")}/10`)}>
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-md flex items-center justify-center",
+                  `bg-${card.color.replace("text-", "")}/10`,
+                )}
+              >
                 <span className={card.color}>{card.icon}</span>
               </div>
-              <ArrowRight size={12} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowRight
+                size={12}
+                className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+              />
             </div>
             {statsLoading ? (
               <Skeleton className="h-7 w-12 mb-1" />
@@ -185,7 +247,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 {stats ? Number(stats[card.key]).toLocaleString() : "0"}
               </div>
             )}
-            <div className="text-xs text-muted-foreground font-medium mt-0.5">{card.label}</div>
+            <div className="text-xs text-muted-foreground font-medium mt-0.5">
+              {card.label}
+            </div>
           </button>
         ))}
       </div>
@@ -213,8 +277,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <div className="divide-y divide-border">
             {recentActivity.length === 0 ? (
               <div className="px-5 py-10 text-center">
-                <BarChart3 size={32} className="mx-auto text-muted-foreground mb-3 opacity-30" />
-                <p className="text-sm text-muted-foreground">No reports yet. Start by creating your first analysis.</p>
+                <BarChart3
+                  size={32}
+                  className="mx-auto text-muted-foreground mb-3 opacity-30"
+                />
+                <p className="text-sm text-muted-foreground">
+                  No reports yet. Start by creating your first analysis.
+                </p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -230,18 +299,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   key={item.id}
                   className="px-5 py-3 flex items-center gap-3 hover:bg-secondary/30 transition-colors"
                 >
-                  <div className={cn(
-                    "w-1.5 h-1.5 rounded-full shrink-0",
-                    item.isDataset ? "bg-cfo-indigo" : "bg-cfo-teal"
-                  )} />
+                  <div
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full shrink-0",
+                      item.isDataset ? "bg-cfo-indigo" : "bg-cfo-teal",
+                    )}
+                  />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{item.name}</div>
-                    <div className="text-xs text-muted-foreground font-mono">{formatDatetime(item.updatedAt)}</div>
+                    <div className="text-sm font-medium text-foreground truncate">
+                      {item.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {formatDatetime(item.updatedAt)}
+                    </div>
                   </div>
-                  <span className={cn(
-                    "shrink-0 text-[10px] font-mono px-2 py-0.5 rounded uppercase tracking-wider",
-                    REPORT_TYPE_COLORS[item.type] || "bg-secondary text-muted-foreground"
-                  )}>
+                  <span
+                    className={cn(
+                      "shrink-0 text-[10px] font-mono px-2 py-0.5 rounded uppercase tracking-wider",
+                      REPORT_TYPE_COLORS[item.type] ||
+                        "bg-secondary text-muted-foreground",
+                    )}
+                  >
                     {REPORT_TYPE_LABELS[item.type] || item.type}
                   </span>
                 </div>
@@ -268,21 +346,31 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   "w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium",
                   "border bg-secondary/30 hover:bg-secondary/60 text-foreground",
                   "transition-all duration-150 group",
-                  action.color.split(" ")[0]
+                  action.color.split(" ")[0],
                 )}
               >
-                <span className={cn("transition-colors", action.color.split(" ").find(c => c.startsWith("text-")))}>
+                <span
+                  className={cn(
+                    "transition-colors",
+                    action.color.split(" ").find((c) => c.startsWith("text-")),
+                  )}
+                >
                   {action.icon}
                 </span>
                 {action.label}
-                <ArrowRight size={12} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ArrowRight
+                  size={12}
+                  className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                />
               </button>
             ))}
           </div>
 
           {/* System Status */}
           <div className="px-5 py-4 border-t border-border">
-            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-3">System Status</div>
+            <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-3">
+              System Status
+            </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Analysis Engine</span>

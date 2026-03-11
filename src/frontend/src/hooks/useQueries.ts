@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useActor } from "./useActor";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReportType } from "../backend.d";
+import { useActor } from "./useActor";
 
 export function useGetDashboardStats() {
   const { actor, isFetching } = useActor();
@@ -50,7 +50,13 @@ export function useCreateReportSession() {
       results: string;
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.createReportSession(args.id, args.name, args.reportType, args.formData, args.results);
+      return actor.createReportSession(
+        args.id,
+        args.name,
+        args.reportType,
+        args.formData,
+        args.results,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reportSessions"] });
@@ -70,7 +76,12 @@ export function useCreateDatasetSession() {
       analysisResults: string;
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.createDatasetSession(args.id, args.name, args.rawData, args.analysisResults);
+      return actor.createDatasetSession(
+        args.id,
+        args.name,
+        args.rawData,
+        args.analysisResults,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["datasetSessions"] });
