@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
+import { useISTClock } from "../../hooks/useISTClock";
 import {
   useGetAllDatasetSessions,
   useGetAllReportSessions,
@@ -106,13 +107,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: reportSessions = [] } = useGetAllReportSessions();
   const { data: datasetSessions = [] } = useGetAllDatasetSessions();
-
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const { istTime, istDate } = useISTClock();
 
   // Combine and sort recent activity
   const recentActivity = [
@@ -186,9 +181,18 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <h1 className="text-2xl lg:text-3xl font-display font-bold text-foreground tracking-tight">
             Command Center
           </h1>
-          <p className="text-sm text-muted-foreground mt-1 font-mono">
-            {today}
-          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-sm text-muted-foreground font-mono">{istDate}</p>
+            <div className="flex items-center gap-1.5 bg-cfo-indigo/10 border border-cfo-indigo/20 rounded px-2 py-0.5">
+              <Clock size={10} className="text-cfo-indigo" />
+              <span className="text-xs font-mono font-semibold text-cfo-indigo tracking-wider">
+                {istTime}
+              </span>
+              <span className="text-[9px] font-mono text-cfo-indigo/70 uppercase">
+                IST
+              </span>
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {QUICK_ACTIONS.map((action) => (

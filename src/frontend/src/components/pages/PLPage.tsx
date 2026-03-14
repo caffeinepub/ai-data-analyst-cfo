@@ -10,10 +10,14 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { FileText, Loader2, Printer, Save, TrendingUp } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
+import {
+  FINANCIAL_PREFILL_KEY,
+  loadFinancialPrefill,
+} from "../../utils/financialSync";
 import { formatCurrency, formatPct } from "../../utils/formatters";
 
 interface PLData {
@@ -176,6 +180,23 @@ function SectionHeader({
 export function PLPage() {
   const [data, setData] = useState<PLData>(INITIAL_PL);
   const createReport = useCreateReportSession();
+
+  useEffect(() => {
+    const prefill = loadFinancialPrefill();
+    if (prefill) {
+      setData((prev) => ({
+        ...prev,
+        revenue: prefill.revenue || prev.revenue,
+        cogs: prefill.cogs || prev.cogs,
+      }));
+      if (prefill.revenue) {
+        toast.info(
+          `Auto-filled revenue & COGS from ${prefill.billCount} saved bill${prefill.billCount > 1 ? "s" : ""}. Review and adjust as needed.`,
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const set = useCallback(
     (key: keyof PLData) => (val: string) => {

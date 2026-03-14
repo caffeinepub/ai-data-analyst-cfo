@@ -7,6 +7,7 @@ import { CashFlowPage } from "./components/pages/CashFlowPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { DataAnalystPage } from "./components/pages/DataAnalystPage";
 import { GSTPage } from "./components/pages/GSTPage";
+import { GrowthChartsPage } from "./components/pages/GrowthChartsPage";
 import { HistoryPage } from "./components/pages/HistoryPage";
 import { ItemCatalogPage } from "./components/pages/ItemCatalogPage";
 import { PLPage } from "./components/pages/PLPage";
@@ -21,6 +22,8 @@ export default function App() {
         return <DashboardPage onNavigate={setCurrentPage} />;
       case "analyst":
         return <DataAnalystPage />;
+      case "growth-charts":
+        return <GrowthChartsPage />;
       case "pl":
         return <PLPage />;
       case "balance-sheet":
@@ -42,20 +45,15 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden dark">
-      {/* Sidebar */}
       <Sidebar
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         open={sidebarOpen}
         onToggle={() => setSidebarOpen((prev) => !prev)}
       />
-
-      {/* Main content */}
       <main className="flex-1 overflow-y-auto min-w-0">
-        {/* Mobile top pad for hamburger button */}
         <div className="pt-14 lg:pt-0">{renderPage()}</div>
       </main>
-
       <Toaster
         theme="dark"
         position="bottom-right"

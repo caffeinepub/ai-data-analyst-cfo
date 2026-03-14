@@ -2,17 +2,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import {
   AlertCircle,
-  Plus,
+  CheckCircle2,
   Printer,
   Receipt,
+  Save,
   Search,
   Trash2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  FINANCIAL_PREFILL_KEY,
+  SAVED_BILLS_KEY,
+  type SavedBill,
+  loadSavedBills,
+} from "../../utils/financialSync";
 import { formatCurrency } from "../../utils/formatters";
 import type { CatalogItem } from "./ItemCatalogPage";
 
@@ -26,6 +33,19 @@ function loadCatalog(): CatalogItem[] {
   } catch {
     return [];
   }
+}
+
+function getISTDateTime() {
+  return new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 }
 
 interface BillLine {
@@ -42,7 +62,8 @@ function calcLine(line: BillLine) {
   const lineSubtotal = unitPrice * line.qty;
   const lineGst = gstAmount * line.qty;
   const lineTotal = lineSubtotal + lineGst;
-  return { unitPrice, gstAmount, lineSubtotal, lineGst, lineTotal };
+  const lineCogs = line.item.costPrice * line.qty;
+  return { unitPrice, gstAmount, lineSubtotal, lineGst, lineTotal, lineCogs };
 }
 
 export function BillGeneratorPage() {
@@ -55,10 +76,13 @@ export function BillGeneratorPage() {
     () => `INV-${Date.now().toString().slice(-6)}`,
   );
   const [indianMode, setIndianMode] = useState(true);
+  const [savedCount, setSavedCount] = useState(() => loadSavedBills().length);
+  const [billDateTime, setBillDateTime] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setCatalog(loadCatalog());
+    setBillDateTime(getISTDateTime());
   }, []);
 
   const suggestions = useMemo(() => {
@@ -100,6 +124,7 @@ export function BillGeneratorPage() {
     setLines([]);
     setCustomerName("");
     setBillNumber(`INV-${Date.now().toString().slice(-6)}`);
+    setBillDateTime(getISTDateTime());
   };
 
   const totals = useMemo(() => {
@@ -110,16 +135,69 @@ export function BillGeneratorPage() {
           subtotal: acc.subtotal + calc.lineSubtotal,
           gst: acc.gst + calc.lineGst,
           total: acc.total + calc.lineTotal,
+          cogs: acc.cogs + calc.lineCogs,
         };
       },
-      { subtotal: 0, gst: 0, total: 0 },
+      { subtotal: 0, gst: 0, total: 0, cogs: 0 },
     );
   }, [lines]);
 
   const handlePrint = () => window.print();
 
+  const handleSave = () => {
+    if (lines.length === 0) {
+      toast.error("Add items to the bill before saving.");
+      return;
+    }
+
+    const firstCategory = lines[0]?.item.category || "General";
+    const newBill: SavedBill = {
+      id: crypto.randomUUID(),
+      billNumber,
+      customerName,
+      date: new Date().toISOString(),
+      subtotal: totals.subtotal,
+      gst: totals.gst,
+      total: totals.total,
+      cogs: totals.cogs,
+      category: firstCategory,
+    };
+
+    // Save bill
+    const existing = loadSavedBills();
+    const updated = [...existing, newBill];
+    localStorage.setItem(SAVED_BILLS_KEY, JSON.stringify(updated));
+    setSavedCount(updated.length);
+
+    // Build financial prefill from ALL saved bills
+    const totalRevenue = updated.reduce((s, b) => s + b.subtotal, 0);
+    const totalCogs = updated.reduce((s, b) => s + b.cogs, 0);
+    const totalGst = updated.reduce((s, b) => s + b.gst, 0);
+    const totalCash = updated.reduce((s, b) => s + b.total, 0);
+    const netIncome = totalRevenue - totalCogs;
+
+    const prefill = {
+      revenue: String(Math.round(totalRevenue)),
+      cogs: String(Math.round(totalCogs)),
+      gstCollected: String(Math.round(totalGst)),
+      cash: String(Math.round(totalCash)),
+      netIncome: String(Math.round(netIncome)),
+      lastUpdated: new Date().toISOString(),
+      billCount: updated.length,
+    };
+    localStorage.setItem(FINANCIAL_PREFILL_KEY, JSON.stringify(prefill));
+
+    toast.success(
+      `Bill saved! Data synced to P&L, Balance Sheet & Cash Flow (${updated.length} bill${updated.length > 1 ? "s" : ""} total).`,
+    );
+
+    // Reset bill number for next invoice
+    setBillNumber(`INV-${Date.now().toString().slice(-6)}`);
+    setBillDateTime(getISTDateTime());
+  };
+
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="p-6 lg:p-8 space-y-6 bill-print-root">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
@@ -137,6 +215,12 @@ export function BillGeneratorPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {savedCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cfo-green/10 border border-cfo-green/20 text-xs font-mono text-cfo-green no-print">
+              <CheckCircle2 size={12} />
+              {savedCount} bill{savedCount > 1 ? "s" : ""} saved
+            </div>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -150,6 +234,17 @@ export function BillGeneratorPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleSave}
+            className="gap-2 text-xs no-print border-cfo-green/40 text-cfo-green hover:bg-cfo-green/10"
+            data-ocid="bill.save_button"
+            disabled={lines.length === 0}
+          >
+            <Save size={13} />
+            Save Bill
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handlePrint}
             className="gap-2 text-xs no-print"
             data-ocid="bill.print_button"
@@ -158,6 +253,18 @@ export function BillGeneratorPage() {
             Print Bill
           </Button>
         </div>
+      </div>
+
+      {/* Sync info banner */}
+      <div className="flex items-start gap-3 p-3 rounded-lg bg-cfo-indigo/10 border border-cfo-indigo/20 text-xs font-mono text-muted-foreground no-print">
+        <CheckCircle2 size={13} className="text-cfo-indigo mt-0.5 shrink-0" />
+        <span>
+          <span className="text-cfo-indigo font-semibold">
+            Auto-sync enabled.
+          </span>{" "}
+          Saving a bill automatically transfers revenue, COGS, and cash data to
+          your P&amp;L, Balance Sheet, and Cash Flow pages.
+        </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -407,7 +514,7 @@ export function BillGeneratorPage() {
             <div className="hidden print:block mb-4">
               <div className="text-lg font-bold">TAX INVOICE</div>
               <div className="text-xs text-gray-500">
-                Bill No: {billNumber} · {new Date().toLocaleDateString()}
+                Bill No: {billNumber} · {billDateTime || getISTDateTime()}
               </div>
               {customerName && (
                 <div className="text-sm mt-1">To: {customerName}</div>
@@ -420,7 +527,7 @@ export function BillGeneratorPage() {
                   Tax Invoice
                 </span>
                 <span className="text-[10px] font-mono text-muted-foreground">
-                  {new Date().toLocaleDateString()}
+                  {billDateTime || getISTDateTime()}
                 </span>
               </div>
               <div className="px-4 py-3 space-y-2 text-xs font-mono">
@@ -487,14 +594,25 @@ export function BillGeneratorPage() {
             )}
 
             {lines.length > 0 && (
-              <Button
-                className="w-full bg-cfo-green hover:bg-cfo-green/90 text-black gap-2 text-xs"
-                onClick={handlePrint}
-                data-ocid="bill.submit_button"
-              >
-                <Printer size={13} />
-                Print Invoice
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  className="w-full bg-cfo-green hover:bg-cfo-green/90 text-black gap-2 text-xs"
+                  onClick={handleSave}
+                  data-ocid="bill.save_button"
+                >
+                  <Save size={13} />
+                  Save &amp; Sync to Reports
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2 text-xs no-print"
+                  onClick={handlePrint}
+                  data-ocid="bill.submit_button"
+                >
+                  <Printer size={13} />
+                  Print Invoice
+                </Button>
+              </div>
             )}
           </div>
         </div>

@@ -1,1509 +1,953 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import {
+  Activity,
   AlertTriangle,
-  BarChart3,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
+  AreaChart,
+  Award,
+  BarChart2,
   Database,
-  History,
-  Info,
-  Lightbulb,
-  LineChart,
-  Loader2,
-  PieChart,
+  Download,
+  PieChartIcon,
   Play,
   Printer,
-  Save,
-  Search,
-  Trash2,
+  TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
+import {
+  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  AreaChart as ReAreaChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import {
-  useCreateDatasetSession,
-  useDeleteDatasetSession,
-  useGetAllDatasetSessions,
-} from "../../hooks/useQueries";
-import {
-  type AnalysisReport,
-  type ColumnStats,
-  type Insight,
-  analyzeDataset,
-} from "../../utils/analysisEngine";
-import { formatDatetime } from "../../utils/formatters";
+  ANALYST_DATA_KEY,
+  buildAnalystCSV,
+  loadSavedBills,
+} from "../../utils/financialSync";
 
-const SAMPLE_CSV = `Month,Region,Product,Revenue,Cost,Units_Sold,Customer_Segment
-Jan-2024,North,Product_A,45000,28000,150,Enterprise
-Jan-2024,South,Product_B,32000,19000,210,SMB
-Jan-2024,East,Product_A,28000,17500,95,Enterprise
-Feb-2024,North,Product_B,51000,31000,170,Enterprise
-Feb-2024,South,Product_A,29000,18000,190,SMB
-Feb-2024,West,Product_C,18000,12000,120,Startup
-Mar-2024,North,Product_A,58000,34000,195,Enterprise
-Mar-2024,South,Product_B,41000,25000,270,SMB
-Mar-2024,East,Product_C,22000,14500,145,Startup
-Apr-2024,North,Product_B,62000,37000,205,Enterprise
-Apr-2024,West,Product_A,35000,21000,160,SMB
-Apr-2024,South,Product_C,27000,17000,175,Startup
-May-2024,North,Product_A,71000,41000,235,Enterprise
-May-2024,East,Product_B,44000,27000,290,SMB
-May-2024,West,Product_C,31000,19500,200,Startup
-Jun-2024,North,Product_A,68000,39000,225,Enterprise
-Jun-2024,South,Product_B,55000,33000,365,SMB
-Jun-2024,East,Product_C,38000,23000,245,Startup`;
+const CHART_COLORS = [
+  "#6366f1",
+  "#22d3ee",
+  "#f59e0b",
+  "#10b981",
+  "#f43f5e",
+  "#a78bfa",
+  "#34d399",
+  "#fb923c",
+];
 
-function Section({
-  title,
-  icon,
-  children,
-  defaultOpen = true,
-  accent = "indigo",
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-  accent?: "indigo" | "teal" | "amber" | "green" | "red";
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const accentClasses = {
-    indigo: "section-border-indigo text-cfo-indigo",
-    teal: "section-border-teal text-cfo-teal",
-    amber: "section-border-amber text-cfo-amber",
-    green: "section-border-green text-cfo-green",
-    red: "section-border-red text-cfo-red",
+interface ParsedRow {
+  month: string;
+  revenue: number;
+  expenses: number;
+  netProfit: number;
+  category: string;
+}
+
+interface AnalysisResult {
+  rows: ParsedRow[];
+  bestMonth: ParsedRow;
+  worstMonth: ParsedRow;
+  totalRevenue: number;
+  totalProfit: number;
+  avgMargin: number;
+  cagr: number | null;
+  overallGrowth: number | null;
+  categories: { name: string; value: number }[];
+  momGrowth: { month: string; growth: number }[];
+  heatmapData: { row: string; col: string; value: number }[];
+  cumulativeRevenue: { month: string; cumulative: number; revenue: number }[];
+}
+
+function parseCSV(csv: string): ParsedRow[] {
+  const lines = csv.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) throw new Error("CSV must have header + data rows");
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+
+  const findCol = (names: string[]) =>
+    headers.findIndex((h) => names.some((n) => h.includes(n)));
+
+  const monthIdx = findCol(["month", "date", "period"]);
+  const revenueIdx = findCol(["revenue", "sales", "income"]);
+  const expensesIdx = findCol(["expense", "cost"]);
+  const profitIdx = findCol(["profit", "net"]);
+  const categoryIdx = findCol(["category", "segment", "product", "region"]);
+
+  const rows: ParsedRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",").map((c) => c.trim());
+    const revenue = revenueIdx >= 0 ? Number(cols[revenueIdx]) || 0 : 0;
+    const expenses = expensesIdx >= 0 ? Number(cols[expensesIdx]) || 0 : 0;
+    const netProfit =
+      profitIdx >= 0 ? Number(cols[profitIdx]) || 0 : revenue - expenses;
+    rows.push({
+      month: monthIdx >= 0 ? cols[monthIdx] : `Row ${i}`,
+      revenue,
+      expenses,
+      netProfit,
+      category: categoryIdx >= 0 ? cols[categoryIdx] : "General",
+    });
+  }
+  return rows;
+}
+
+function analyze(rows: ParsedRow[]): AnalysisResult {
+  const sorted = [...rows];
+  const bestMonth = sorted.reduce((a, b) => (a.revenue > b.revenue ? a : b));
+  const worstMonth = sorted.reduce((a, b) => (a.revenue < b.revenue ? a : b));
+
+  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+  const totalProfit = rows.reduce((s, r) => s + r.netProfit, 0);
+  const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+  let cagr: number | null = null;
+  let overallGrowth: number | null = null;
+  if (rows.length >= 2 && rows[0].revenue > 0) {
+    const n = rows.length;
+    overallGrowth =
+      ((rows[n - 1].revenue - rows[0].revenue) / rows[0].revenue) * 100;
+    if (n > 1) {
+      cagr =
+        ((rows[n - 1].revenue / rows[0].revenue) ** (1 / (n - 1)) - 1) * 100;
+    }
+  }
+
+  const catMap: Record<string, number> = {};
+  for (const r of rows) {
+    catMap[r.category] = (catMap[r.category] || 0) + r.revenue;
+  }
+  const categories = Object.entries(catMap).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  const momGrowth: { month: string; growth: number }[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1].revenue;
+    const curr = rows[i].revenue;
+    momGrowth.push({
+      month: rows[i].month,
+      growth: prev > 0 ? Math.round(((curr - prev) / prev) * 100) : 0,
+    });
+  }
+
+  let cum = 0;
+  const cumulativeRevenue = rows.map((r) => {
+    cum += r.revenue;
+    return { month: r.month, cumulative: cum, revenue: r.revenue };
+  });
+
+  const metrics = ["Revenue", "Expenses", "Net Profit"];
+  const heatmapData: { row: string; col: string; value: number }[] = [];
+  const metricValues = {
+    Revenue: rows.map((r) => r.revenue),
+    Expenses: rows.map((r) => r.expenses),
+    "Net Profit": rows.map((r) => r.netProfit),
   };
+  function corr(a: number[], b: number[]) {
+    const n = a.length;
+    if (n < 2) return 1;
+    const ma = a.reduce((s, v) => s + v, 0) / n;
+    const mb = b.reduce((s, v) => s + v, 0) / n;
+    const num = a.reduce((s, v, i) => s + (v - ma) * (b[i] - mb), 0);
+    const da = Math.sqrt(a.reduce((s, v) => s + (v - ma) ** 2, 0));
+    const db = Math.sqrt(b.reduce((s, v) => s + (v - mb) ** 2, 0));
+    if (da === 0 || db === 0) return 0;
+    return num / (da * db);
+  }
+  for (const r of metrics) {
+    for (const c of metrics) {
+      heatmapData.push({
+        row: r,
+        col: c,
+        value:
+          Math.round(
+            corr(
+              metricValues[r as keyof typeof metricValues],
+              metricValues[c as keyof typeof metricValues],
+            ) * 100,
+          ) / 100,
+      });
+    }
+  }
 
-  return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden animate-fade-in">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "w-full flex items-center justify-between px-5 py-4",
-          "border-l-2 hover:bg-secondary/30 transition-colors",
-          accentClasses[accent].split(" ")[0],
-        )}
-      >
-        <div className="flex items-center gap-3">
-          <span className={accentClasses[accent].split(" ")[1]}>{icon}</span>
-          <span className="text-sm font-display font-semibold text-foreground uppercase tracking-wider">
-            {title}
-          </span>
-        </div>
-        {open ? (
-          <ChevronUp size={14} className="text-muted-foreground" />
-        ) : (
-          <ChevronDown size={14} className="text-muted-foreground" />
-        )}
-      </button>
-      {open && <div className="px-5 pb-5 pt-4">{children}</div>}
-    </div>
-  );
-}
-
-function InsightCard({ insight }: { insight: Insight }) {
-  const typeConfig = {
-    info: { cls: "insight-info", icon: <Info size={13} /> },
-    warning: { cls: "insight-warning", icon: <AlertTriangle size={13} /> },
-    success: { cls: "insight-success", icon: <CheckCircle size={13} /> },
-    danger: { cls: "insight-danger", icon: <AlertTriangle size={13} /> },
+  return {
+    rows,
+    bestMonth,
+    worstMonth,
+    totalRevenue,
+    totalProfit,
+    avgMargin,
+    cagr,
+    overallGrowth,
+    categories,
+    momGrowth,
+    heatmapData,
+    cumulativeRevenue,
   };
-  const cfg = typeConfig[insight.type];
-  return (
-    <div className={cn("p-3 rounded-md mb-2", cfg.cls)}>
-      <div className="flex items-start gap-2">
-        <span className="mt-0.5 shrink-0">{cfg.icon}</span>
-        <div>
-          <div className="text-xs font-semibold text-foreground mb-0.5">
-            {insight.title}
-          </div>
-          <div className="text-xs text-muted-foreground leading-relaxed">
-            {insight.description}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
-function StatTable({ stats }: { stats: ColumnStats[] }) {
-  const numericStats = stats.filter((s) => s.type === "numeric");
-  const textStats = stats.filter((s) => s.type !== "numeric");
-
-  return (
-    <div className="space-y-4">
-      {numericStats.length > 0 && (
-        <div>
-          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-2">
-            Numeric Columns
-          </div>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-secondary/50 border-b border-border">
-                  {[
-                    "Column",
-                    "Type",
-                    "Count",
-                    "Missing",
-                    "Mean",
-                    "Median",
-                    "Std",
-                    "Min",
-                    "Max",
-                    "Sum",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 text-left font-mono text-muted-foreground uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="table-zebra">
-                {numericStats.map((s) => (
-                  <tr key={s.name} className="border-b border-border/50">
-                    <td className="px-3 py-2 font-mono font-medium text-cfo-indigo">
-                      {s.name}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-cfo-teal">
-                      {s.type}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{s.count}</td>
-                    <td className="px-3 py-2 font-mono text-cfo-amber">
-                      {s.missing} ({(s.missingPct * 100).toFixed(1)}%)
-                    </td>
-                    <td className="px-3 py-2 font-mono">
-                      {s.mean?.toFixed(2) ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono">
-                      {s.median?.toFixed(2) ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono">
-                      {s.std?.toFixed(2) ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-cfo-red">
-                      {s.min?.toFixed(2) ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-cfo-green">
-                      {s.max?.toFixed(2) ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono font-semibold">
-                      {s.sum?.toLocaleString() ?? "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {textStats.length > 0 && (
-        <div>
-          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-2">
-            Categorical / Date Columns
-          </div>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-secondary/50 border-b border-border">
-                  {[
-                    "Column",
-                    "Type",
-                    "Count",
-                    "Missing",
-                    "Unique Values",
-                    "Mode / Top Value",
-                    "Top 5 Values",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 text-left font-mono text-muted-foreground uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="table-zebra">
-                {textStats.map((s) => (
-                  <tr key={s.name} className="border-b border-border/50">
-                    <td className="px-3 py-2 font-mono font-medium text-cfo-indigo">
-                      {s.name}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-cfo-teal">
-                      {s.type}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{s.count}</td>
-                    <td className="px-3 py-2 font-mono text-cfo-amber">
-                      {s.missing}
-                    </td>
-                    <td className="px-3 py-2 font-mono">
-                      {s.uniqueCount ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono font-medium">
-                      {s.mode ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-muted-foreground max-w-48">
-                      {s.topValues
-                        ?.map(
-                          (v) => `${v.value} (${(v.pct * 100).toFixed(0)}%)`,
-                        )
-                        .join(", ") ?? "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function fmt(n: number) {
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
 }
 
-function KPIChips({ report }: { report: AnalysisReport }) {
+function HeatmapCell({ value }: { value: number }) {
+  const abs = Math.abs(value);
+  const isPos = value >= 0;
+  const opacity = 0.15 + abs * 0.75;
+  const bg = isPos
+    ? `rgba(99,102,241,${opacity})`
+    : `rgba(244,63,94,${opacity})`;
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {report.kpis.map((kpi) => (
-        <div
-          key={kpi.name}
-          className={cn(
-            "p-3 rounded-lg border",
-            kpi.trend === "up"
-              ? "border-cfo-green/30 bg-cfo-green/5"
-              : kpi.trend === "down"
-                ? "border-cfo-red/30 bg-cfo-red/5"
-                : "border-border bg-secondary/30",
-          )}
-        >
-          <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-1">
-            {kpi.label} / {kpi.name}
-          </div>
-          <div className="text-lg font-mono font-bold text-foreground">
-            {kpi.total.toLocaleString()}
-          </div>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[10px] text-muted-foreground">
-              avg: {kpi.average.toLocaleString()}
-            </span>
-            {kpi.growthRate !== undefined && (
-              <span
-                className={cn(
-                  "text-[10px] font-mono font-semibold",
-                  kpi.growthRate > 0 ? "text-cfo-green" : "text-cfo-red",
-                )}
-              >
-                {kpi.growthRate > 0 ? "▲" : "▼"}{" "}
-                {(Math.abs(kpi.growthRate) * 100).toFixed(1)}%
-              </span>
-            )}
-          </div>
-        </div>
-      ))}
+    <div
+      className="flex items-center justify-center rounded text-xs font-bold"
+      style={{ backgroundColor: bg, color: "#f1f5f9", height: 52 }}
+    >
+      {value.toFixed(2)}
     </div>
   );
 }
 
 export function DataAnalystPage() {
-  const [rawData, setRawData] = useState("");
-  const [analysisName, setAnalysisName] = useState("Dataset Analysis");
-  const [report, setReport] = useState<AnalysisReport | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [csvText, setCsvText] = useState("");
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState("");
 
-  const { data: savedSessions = [], isLoading: sessionsLoading } =
-    useGetAllDatasetSessions();
-  const createSession = useCreateDatasetSession();
-  const deleteSession = useDeleteDatasetSession();
-
-  const handleAnalyze = () => {
-    if (!rawData.trim()) {
-      toast.error("Please paste data to analyze");
+  function loadBusinessData() {
+    const bills = loadSavedBills();
+    if (bills.length === 0) {
+      toast.info(
+        "No saved bills found. Save bills in the Bill Generator first, then load business data here.",
+      );
       return;
     }
-    setIsAnalyzing(true);
-    // Use setTimeout to allow UI to update before heavy computation
-    setTimeout(() => {
-      try {
-        const result = analyzeDataset(rawData);
-        setReport(result);
-        toast.success("Analysis complete — 10-step report generated");
-      } catch {
-        toast.error("Failed to parse data. Please check the format.");
-      } finally {
-        setIsAnalyzing(false);
-      }
-    }, 50);
-  };
-
-  const handleSave = async () => {
-    if (!report) return;
-    const id = crypto.randomUUID();
-    toast.promise(
-      createSession.mutateAsync({
-        id,
-        name: analysisName,
-        rawData,
-        analysisResults: JSON.stringify(report),
-      }),
-      {
-        loading: "Saving analysis...",
-        success: "Analysis saved to history",
-        error: "Failed to save analysis",
-      },
+    const csv = buildAnalystCSV(bills);
+    setCsvText(csv);
+    setError("");
+    toast.success(
+      `Loaded data from ${bills.length} saved bill${bills.length > 1 ? "s" : ""}.`,
     );
-  };
+  }
 
-  const handleLoadSession = (session: {
-    rawData: string;
-    name: string;
-    analysisResults: string;
-  }) => {
-    setRawData(session.rawData);
-    setAnalysisName(session.name);
+  function analyze_data() {
+    setError("");
     try {
-      setReport(JSON.parse(session.analysisResults));
-      toast.success(`Loaded: ${session.name}`);
-    } catch {
-      setReport(analyzeDataset(session.rawData));
+      const rows = parseCSV(csvText);
+      if (rows.length === 0) throw new Error("No data rows found");
+      setResult(analyze(rows));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to parse CSV";
+      setError(msg);
+      setResult(null);
     }
-    setShowHistory(false);
-  };
+  }
 
-  const handleDeleteSession = (id: string) => {
-    toast.promise(deleteSession.mutateAsync(id), {
-      loading: "Deleting...",
-      success: "Deleted",
-      error: "Failed to delete",
-    });
-  };
+  function handleSaveAnalysis() {
+    if (!csvText.trim()) return;
+    localStorage.setItem(ANALYST_DATA_KEY, csvText);
+    toast.success("Analysis data saved successfully.");
+  }
+
+  function handlePrintAnalysis() {
+    window.print();
+  }
+
+  const metrics = result ? ["Revenue", "Expenses", "Net Profit"] : [];
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <BarChart3 size={14} className="text-cfo-teal" />
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-              Business Intelligence
-            </span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Activity className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl lg:text-3xl font-display font-bold text-foreground tracking-tight">
-            AI Data Analyst
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Senior-Level Business Intelligence Engine · 10-Step Auto Analysis
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              AI Data Analyst
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Upload your business CSV for instant visual insights
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 text-xs"
-            onClick={() => setShowHistory(!showHistory)}
-          >
-            <History size={13} />
-            History ({savedSessions.length})
-          </Button>
-        </div>
+        {result && (
+          <div className="flex gap-2 no-print">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveAnalysis}
+              className="gap-2 text-xs"
+              data-ocid="analyst.save_button"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Save Analysis
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrintAnalysis}
+              className="gap-2 text-xs"
+              data-ocid="analyst.print_button"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print Report
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* History Panel */}
-      {showHistory && (
-        <div className="bg-card border border-border rounded-lg overflow-hidden animate-fade-in">
-          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <span className="text-sm font-semibold text-foreground">
-              Saved Analyses
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowHistory(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Close
-            </button>
-          </div>
-          {sessionsLoading ? (
-            <div className="p-4 space-y-2">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-10" />
-              ))}
-            </div>
-          ) : savedSessions.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              No saved analyses yet
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {savedSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="px-5 py-3 flex items-center gap-3 hover:bg-secondary/30 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground">
-                      {session.name}
-                    </div>
-                    <div className="text-xs font-mono text-muted-foreground">
-                      {formatDatetime(session.updatedAt)}
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs"
-                    onClick={() => handleLoadSession(session)}
-                  >
-                    Load
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-xs text-destructive hover:text-destructive"
-                    onClick={() => handleDeleteSession(session.id)}
-                  >
-                    <Trash2 size={13} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Input Section */}
-      <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex-1">
-            <Label
-              htmlFor="analysis-name"
-              className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-1.5 block"
-            >
-              Analysis Name
+      {/* Input Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Database className="h-4 w-4 text-primary" />
+            Business Data Input
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1 block">
+              Paste CSV data (columns: Month, Revenue, Expenses, NetProfit,
+              Category) — or load directly from saved bills
             </Label>
-            <Input
-              id="analysis-name"
-              value={analysisName}
-              onChange={(e) => setAnalysisName(e.target.value)}
-              className="bg-input border-border text-sm h-9"
-              placeholder="My Dataset Analysis"
+            <Textarea
+              data-ocid="analyst.input"
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              placeholder="Month,Revenue,Expenses,NetProfit,Category&#10;Jan-2024,820000,560000,260000,Electronics"
+              className="font-mono text-xs min-h-[140px] bg-background/50"
             />
           </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <Label
-              htmlFor="csv-input"
-              className="text-xs font-mono text-muted-foreground uppercase tracking-wider"
+          {error && (
+            <div
+              data-ocid="analyst.error_state"
+              className="flex items-center gap-2 text-destructive text-sm"
             >
-              Paste CSV or Tabular Data
-            </Label>
-            <button
-              type="button"
-              onClick={() => {
-                setRawData(SAMPLE_CSV);
-                setAnalysisName("Q1-Q2 2024 Sales Dataset");
-              }}
-              className="text-xs text-cfo-indigo hover:underline font-mono"
-            >
-              Load Sample Data
-            </button>
-          </div>
-          <Textarea
-            id="csv-input"
-            value={rawData}
-            onChange={(e) => setRawData(e.target.value)}
-            placeholder="Month,Region,Product,Revenue,Cost&#10;Jan-2024,North,Product_A,45000,28000&#10;..."
-            className="font-mono text-xs min-h-36 bg-input border-border resize-y leading-relaxed"
-          />
-          <div className="flex items-center gap-4 mt-2">
-            <span className="text-[11px] font-mono text-muted-foreground">
-              <span className="text-cfo-teal">Format Guide:</span> CSV (comma),
-              TSV (tab), or pipe-separated · First row = headers ·{" "}
-              {rawData.split("\n").filter(Boolean).length} rows pasted
-            </span>
-          </div>
-        </div>
-
-        <div className="flex gap-3">
-          <Button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || !rawData.trim()}
-            className="gap-2 bg-cfo-indigo hover:bg-cfo-indigo/90 text-white"
-          >
-            {isAnalyzing ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Play size={14} />
-            )}
-            {isAnalyzing ? "Analyzing..." : "Analyze Data"}
-          </Button>
-          {report && (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleSave}
-                disabled={createSession.isPending}
-                className="gap-2"
-              >
-                <Save size={14} />
-                Save Analysis
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => window.print()}
-                className="gap-2"
-              >
-                <Printer size={14} />
-                Print
-              </Button>
-            </>
+              <AlertTriangle className="h-4 w-4" />
+              {error}
+            </div>
           )}
-        </div>
-      </div>
+          <div className="flex gap-3 flex-wrap">
+            <Button
+              data-ocid="analyst.load_business_button"
+              variant="outline"
+              onClick={loadBusinessData}
+              className="gap-2"
+            >
+              <Database className="h-4 w-4" />
+              Load Business Data
+            </Button>
+            <Button
+              data-ocid="analyst.submit_button"
+              onClick={analyze_data}
+              disabled={!csvText.trim()}
+              className="gap-2"
+            >
+              <Play className="h-4 w-4" />
+              Analyze Data
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Report */}
-      {report && (
-        <div className="space-y-4" id="analysis-report">
-          {/* Report Header */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border py-3 -mx-6 lg:-mx-8 px-6 lg:px-8 flex items-center justify-between no-print">
-            <div className="flex items-center gap-3">
-              <Database size={16} className="text-cfo-indigo" />
-              <span className="font-display font-semibold text-sm text-foreground">
-                {analysisName}
-              </span>
-              <Badge variant="secondary" className="font-mono text-[10px]">
-                {report.overview.totalRows} rows ×{" "}
-                {report.overview.totalColumns} cols
-              </Badge>
-              <Badge
-                className={cn(
-                  "font-mono text-[10px]",
-                  report.overview.dataQualityScore >= 80
-                    ? "bg-cfo-green/20 text-cfo-green"
-                    : report.overview.dataQualityScore >= 60
-                      ? "bg-cfo-amber/20 text-cfo-amber"
-                      : "bg-cfo-red/20 text-cfo-red",
-                )}
-              >
-                Quality: {report.overview.dataQualityScore}/100
-              </Badge>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSave}
-                disabled={createSession.isPending}
-                className="gap-1.5 text-xs"
-              >
-                <Save size={12} /> Save
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.print()}
-                className="gap-1.5 text-xs"
-              >
-                <Printer size={12} /> Print
-              </Button>
-            </div>
+      {result && (
+        <>
+          {/* Business Summary */}
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-primary" />
+                Business Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Total Revenue
+                  </p>
+                  <p className="text-xl font-bold text-primary">
+                    {fmt(result.totalRevenue)}
+                  </p>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Total Net Profit
+                  </p>
+                  <p className="text-xl font-bold text-green-500">
+                    {fmt(result.totalProfit)}
+                  </p>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Avg Profit Margin
+                  </p>
+                  <p className="text-xl font-bold">
+                    {Math.round(result.avgMargin)}%
+                  </p>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Total Months
+                  </p>
+                  <p className="text-xl font-bold">{result.rows.length}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-start gap-3 bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                  <TrendingUp className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-green-400 font-semibold uppercase tracking-wider mb-1">
+                      Best Month
+                    </p>
+                    <p className="font-bold text-lg">
+                      {result.bestMonth.month}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Revenue: {fmt(result.bestMonth.revenue)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Profit: {fmt(result.bestMonth.netProfit)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                  <TrendingDown className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-red-400 font-semibold uppercase tracking-wider mb-1">
+                      Worst Month
+                    </p>
+                    <p className="font-bold text-lg">
+                      {result.worstMonth.month}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Revenue: {fmt(result.worstMonth.revenue)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Profit: {fmt(result.worstMonth.netProfit)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 bg-primary/10 border border-primary/20 rounded-lg p-4">
+                  <BarChart2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-primary font-semibold uppercase tracking-wider mb-1">
+                      Growth Metrics
+                    </p>
+                    {result.cagr !== null && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge
+                          variant="outline"
+                          className="text-primary border-primary/40 text-xs"
+                        >
+                          CAGR: {result.cagr.toFixed(1)}% / period
+                        </Badge>
+                      </div>
+                    )}
+                    {result.overallGrowth !== null && (
+                      <p className="text-sm text-muted-foreground">
+                        Overall Growth:{" "}
+                        <span
+                          className={
+                            result.overallGrowth >= 0
+                              ? "text-green-500 font-semibold"
+                              : "text-red-500 font-semibold"
+                          }
+                        >
+                          {result.overallGrowth >= 0 ? "+" : ""}
+                          {Math.round(result.overallGrowth)}%
+                        </span>
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {result.rows[0].month} →{" "}
+                      {result.rows[result.rows.length - 1].month}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Charts Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 1. Revenue Growth */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-4 w-4 text-indigo-400" />
+                  Revenue Growth
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart
+                    data={result.rows}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => [fmt(v), "Revenue"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#6366f1"
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: "#6366f1" }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 2. Net Profit Growth */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-4 w-4 text-emerald-400" />
+                  Net Profit Growth
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart
+                    data={result.rows}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => [fmt(v), "Net Profit"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="netProfit"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: "#10b981" }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 3. Pie Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <PieChartIcon className="h-4 w-4 text-amber-400" />
+                  Revenue by Category
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={result.categories}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      label={({ name, percent }) =>
+                        `${name} ${Math.round((percent || 0) * 100)}%`
+                      }
+                      labelLine={false}
+                    >
+                      {result.categories.map((cat, i) => (
+                        <Cell
+                          key={cat.name}
+                          fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v: number) => [fmt(v), "Revenue"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 4. MoM Growth */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  Month-over-Month Growth %
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart
+                    data={result.momGrowth}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `${v}%`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => [`${v}%`, "MoM Growth"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Bar dataKey="growth" radius={[4, 4, 0, 0]}>
+                      {result.momGrowth.map((entry) => (
+                        <Cell
+                          key={entry.month}
+                          fill={entry.growth >= 0 ? "#22d3ee" : "#f43f5e"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 5. Top Categories Bar */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart2 className="h-4 w-4 text-violet-400" />
+                  Top Categories by Revenue
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart
+                    data={[...result.categories].sort(
+                      (a, b) => b.value - a.value,
+                    )}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => [fmt(v), "Revenue"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {result.categories.map((cat, i) => (
+                        <Cell
+                          key={cat.name}
+                          fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 6. Cumulative Revenue Area */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <AreaChart className="h-4 w-4 text-teal-400" />
+                  Cumulative Revenue
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ReAreaChart
+                    data={result.cumulativeRevenue}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="cumGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop
+                          offset="5%"
+                          stopColor="#14b8a6"
+                          stopOpacity={0.4}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#14b8a6"
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `₹${(v / 100000).toFixed(0)}L`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => [fmt(v), "Cumulative Revenue"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="cumulative"
+                      stroke="#14b8a6"
+                      fill="url(#cumGrad)"
+                      strokeWidth={2.5}
+                    />
+                  </ReAreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 7. Profit Margin Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-4 w-4 text-orange-400" />
+                  Profit Margin Trend
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart
+                    data={result.rows.map((r) => ({
+                      month: r.month,
+                      margin:
+                        r.revenue > 0
+                          ? Math.round((r.netProfit / r.revenue) * 100)
+                          : 0,
+                    }))}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `${v}%`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => [`${v}%`, "Profit Margin"]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="margin"
+                      stroke="#f97316"
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: "#f97316" }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 8. Revenue vs Profit */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart2 className="h-4 w-4 text-pink-400" />
+                  Revenue vs Net Profit
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart
+                    data={result.rows}
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [
+                        fmt(v),
+                        name === "revenue" ? "Revenue" : "Net Profit",
+                      ]}
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Legend />
+                    <Bar
+                      dataKey="revenue"
+                      fill="#6366f1"
+                      radius={[4, 4, 0, 0]}
+                      name="Revenue"
+                    />
+                    <Bar
+                      dataKey="netProfit"
+                      fill="#10b981"
+                      radius={[4, 4, 0, 0]}
+                      name="Net Profit"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Step 1: Overview */}
-          <Section
-            title="1. Dataset Overview"
-            icon={<Database size={15} />}
-            accent="indigo"
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {[
-                {
-                  label: "Total Rows",
-                  value: report.overview.totalRows.toLocaleString(),
-                  color: "text-foreground",
-                },
-                {
-                  label: "Total Columns",
-                  value: report.overview.totalColumns.toString(),
-                  color: "text-foreground",
-                },
-                {
-                  label: "Duplicate Rows",
-                  value: report.overview.duplicateRows.toString(),
-                  color:
-                    report.overview.duplicateRows > 0
-                      ? "text-cfo-amber"
-                      : "text-cfo-green",
-                },
-                {
-                  label: "Missing Values",
-                  value: report.overview.totalMissing.toString(),
-                  color:
-                    report.overview.totalMissing > 0
-                      ? "text-cfo-amber"
-                      : "text-cfo-green",
-                },
-              ].map((item) => (
+          {/* 9. Heatmap */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart2 className="h-4 w-4 text-rose-400" />
+                Metrics Correlation Heatmap
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
                 <div
-                  key={item.label}
-                  className="bg-secondary/30 rounded-md p-3"
+                  className="grid gap-2 min-w-[320px]"
+                  style={{
+                    gridTemplateColumns: `120px repeat(${metrics.length}, 1fr)`,
+                  }}
                 >
-                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                    {item.label}
-                  </div>
-                  <div
-                    className={cn(
-                      "text-xl font-mono font-bold mt-1",
-                      item.color,
-                    )}
-                  >
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="text-xs font-mono text-muted-foreground">
-              <span className="text-cfo-teal font-semibold">Columns: </span>
-              {report.overview.headers.map((h, i) => (
-                <span key={h}>
-                  <span className="text-foreground">{h}</span>
-                  {i < report.overview.headers.length - 1 && (
-                    <span className="text-muted-foreground">, </span>
-                  )}
-                </span>
-              ))}
-            </div>
-          </Section>
-
-          {/* Step 2: Cleaning */}
-          <Section
-            title="2. Data Cleaning Summary"
-            icon={<CheckCircle size={15} />}
-            accent="green"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-              <div className="bg-secondary/30 rounded-md p-3">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Cleaned Rows
-                </div>
-                <div className="text-xl font-mono font-bold text-cfo-green mt-1">
-                  {report.cleaningSummary.cleanedRows}
-                </div>
-              </div>
-              <div className="bg-secondary/30 rounded-md p-3">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Removed Duplicates
-                </div>
-                <div className="text-xl font-mono font-bold text-cfo-amber mt-1">
-                  {report.cleaningSummary.removedDuplicates}
-                </div>
-              </div>
-              <div className="bg-secondary/30 rounded-md p-3">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Imputed Columns
-                </div>
-                <div className="text-xl font-mono font-bold text-cfo-indigo mt-1">
-                  {report.cleaningSummary.imputedColumns.length}
-                </div>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              {report.cleaningSummary.actions.map((action) => (
-                <div key={action} className="flex items-start gap-2 text-xs">
-                  <CheckCircle
-                    size={11}
-                    className="mt-0.5 text-cfo-green shrink-0"
-                  />
-                  <span className="text-muted-foreground font-mono">
-                    {action}
-                  </span>
-                </div>
-              ))}
-              {report.cleaningSummary.highMissingColumns.length > 0 && (
-                <div className="flex items-start gap-2 text-xs">
-                  <AlertTriangle
-                    size={11}
-                    className="mt-0.5 text-cfo-amber shrink-0"
-                  />
-                  <span className="text-cfo-amber font-mono">
-                    High missing data flagged:{" "}
-                    {report.cleaningSummary.highMissingColumns.join(", ")}
-                  </span>
-                </div>
-              )}
-            </div>
-          </Section>
-
-          {/* Step 3: EDA */}
-          <Section
-            title="3. Exploratory Analysis"
-            icon={<Search size={15} />}
-            accent="teal"
-          >
-            <StatTable stats={report.columnStats} />
-            {report.correlations.length > 0 && (
-              <div className="mt-4">
-                <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-2">
-                  Correlation Matrix
-                </div>
-                <div className="overflow-x-auto rounded-md border border-border">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-secondary/50 border-b border-border">
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Column A
-                        </th>
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Column B
-                        </th>
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Pearson r
-                        </th>
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Strength
-                        </th>
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Direction
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="table-zebra">
-                      {report.correlations.map((c) => (
-                        <tr
-                          key={`${c.col1}-${c.col2}`}
-                          className="border-b border-border/50"
-                        >
-                          <td className="px-3 py-2 font-mono text-cfo-indigo">
-                            {c.col1}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-cfo-teal">
-                            {c.col2}
-                          </td>
-                          <td className="px-3 py-2 font-mono font-bold">
-                            {c.r}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={cn(
-                                "font-mono text-[10px] px-1.5 py-0.5 rounded uppercase",
-                                c.strength === "strong"
-                                  ? "bg-cfo-green/20 text-cfo-green"
-                                  : c.strength === "moderate"
-                                    ? "bg-cfo-amber/20 text-cfo-amber"
-                                    : "bg-secondary text-muted-foreground",
-                              )}
-                            >
-                              {c.strength}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 font-mono text-muted-foreground">
-                            {c.direction}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </Section>
-
-          {/* Step 4: Trends */}
-          <Section
-            title="4. Trend Analysis"
-            icon={<TrendingUp size={15} />}
-            accent="amber"
-          >
-            {report.trends.dateColumn ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    {
-                      label: "Date Column",
-                      value: report.trends.dateColumn,
-                      color: "text-cfo-indigo",
-                    },
-                    {
-                      label: "Periods",
-                      value: report.trends.points.length.toString(),
-                      color: "text-foreground",
-                    },
-                    {
-                      label: "Peak Period",
-                      value: report.trends.peakPeriod || "—",
-                      color: "text-cfo-green",
-                    },
-                    {
-                      label: "Trough Period",
-                      value: report.trends.troughPeriod || "—",
-                      color: "text-cfo-red",
-                    },
-                  ].map((item) => (
+                  <div />
+                  {metrics.map((m) => (
                     <div
-                      key={item.label}
-                      className="bg-secondary/30 rounded-md p-3"
+                      key={m}
+                      className="text-center text-xs font-semibold text-muted-foreground pb-1"
                     >
-                      <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                        {item.label}
-                      </div>
-                      <div
-                        className={cn(
-                          "text-sm font-mono font-bold mt-1 truncate",
-                          item.color,
-                        )}
-                      >
-                        {item.value}
-                      </div>
+                      {m}
                     </div>
                   ))}
-                </div>
-
-                {report.trends.overallGrowthRate !== undefined && (
-                  <div className="flex flex-wrap gap-3">
-                    <div
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-mono",
-                        report.trends.overallGrowthRate >= 0
-                          ? "bg-cfo-green/10 text-cfo-green"
-                          : "bg-cfo-red/10 text-cfo-red",
-                      )}
-                    >
-                      <TrendingUp size={12} />
-                      Overall Growth:{" "}
-                      {(report.trends.overallGrowthRate * 100).toFixed(2)}%
-                    </div>
-                    {report.trends.cagr !== undefined && (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-mono bg-cfo-indigo/10 text-cfo-indigo">
-                        <BarChart3 size={12} />
-                        CAGR: {(report.trends.cagr * 100).toFixed(2)}%
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="overflow-x-auto rounded-md border border-border">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-secondary/50 border-b border-border">
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Period
-                        </th>
-                        <th className="px-3 py-2 text-right font-mono text-muted-foreground">
-                          Value
-                        </th>
-                        <th className="px-3 py-2 text-right font-mono text-muted-foreground">
-                          MoM Growth
-                        </th>
-                        <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                          Flag
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="table-zebra">
-                      {report.trends.points.map((p) => (
-                        <tr
-                          key={p.label}
-                          className={cn(
-                            "border-b border-border/50",
-                            p.isAnomaly && "bg-cfo-amber/5",
-                          )}
-                        >
-                          <td className="px-3 py-2 font-mono text-cfo-indigo">
-                            {p.label}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-right">
-                            {p.value.toLocaleString()}
-                          </td>
-                          <td
-                            className={cn(
-                              "px-3 py-2 font-mono text-right",
-                              p.growthRate === undefined
-                                ? "text-muted-foreground"
-                                : p.growthRate >= 0
-                                  ? "text-cfo-green"
-                                  : "text-cfo-red",
-                            )}
-                          >
-                            {p.growthRate !== undefined
-                              ? `${(p.growthRate * 100).toFixed(1)}%`
-                              : "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {p.isAnomaly && (
-                              <span className="text-[10px] font-mono bg-cfo-amber/20 text-cfo-amber px-1.5 py-0.5 rounded uppercase">
-                                Anomaly
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {report.trends.anomalies.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-xs font-mono text-cfo-amber uppercase tracking-wider">
-                      Detected Anomalies
-                    </div>
-                    {report.trends.anomalies.map((a) => (
-                      <div key={a} className="flex items-start gap-2 text-xs">
-                        <AlertTriangle
-                          size={11}
-                          className="mt-0.5 text-cfo-amber shrink-0"
-                        />
-                        <span className="text-muted-foreground font-mono">
-                          {a}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground font-mono py-4 text-center">
-                No date column detected. Add a date/period column for
-                time-series trend analysis.
-              </div>
-            )}
-          </Section>
-
-          {/* Step 5: Segments */}
-          <Section
-            title="5. Segment Analysis"
-            icon={<PieChart size={15} />}
-            accent="teal"
-          >
-            {report.segments.length === 0 ? (
-              <div className="text-sm text-muted-foreground font-mono py-4 text-center">
-                No categorical columns found for segmentation.
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {report.segments.map((seg) => (
-                  <div key={seg.groupByColumn}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                        Grouped by:{" "}
-                        <span className="text-cfo-teal">
-                          {seg.groupByColumn}
-                        </span>
-                      </div>
-                      <span className="text-xs font-mono bg-cfo-green/15 text-cfo-green px-2 py-0.5 rounded">
-                        Top: {seg.topPerformer}
-                      </span>
-                      <span className="text-xs font-mono bg-cfo-red/15 text-cfo-red px-2 py-0.5 rounded">
-                        Bottom: {seg.bottomPerformer}
-                      </span>
-                    </div>
-                    <div className="overflow-x-auto rounded-md border border-border">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-secondary/50 border-b border-border">
-                            <th className="px-3 py-2 text-left font-mono text-muted-foreground">
-                              Segment
-                            </th>
-                            <th className="px-3 py-2 text-right font-mono text-muted-foreground">
-                              Count
-                            </th>
-                            {seg.rows[0] &&
-                              Object.keys(seg.rows[0])
-                                .filter(
-                                  (k) =>
-                                    k !== "segment" &&
-                                    k !== "groupBy" &&
-                                    k !== "count",
-                                )
-                                .map((k) => (
-                                  <th
-                                    key={k}
-                                    className="px-3 py-2 text-right font-mono text-muted-foreground"
-                                  >
-                                    {k}
-                                  </th>
-                                ))}
-                          </tr>
-                        </thead>
-                        <tbody className="table-zebra">
-                          {seg.rows.map((row, i) => (
-                            <tr
-                              key={row.segment}
-                              className={cn(
-                                "border-b border-border/50",
-                                i === 0 && "bg-cfo-green/5",
-                              )}
-                            >
-                              <td className="px-3 py-2 font-mono font-medium text-cfo-indigo">
-                                {row.segment}
-                              </td>
-                              <td className="px-3 py-2 font-mono text-right">
-                                {row.count}
-                              </td>
-                              {Object.entries(row)
-                                .filter(
-                                  ([k]) =>
-                                    k !== "segment" &&
-                                    k !== "groupBy" &&
-                                    k !== "count",
-                                )
-                                .map(([k, v]) => (
-                                  <td
-                                    key={k}
-                                    className="px-3 py-2 font-mono text-right"
-                                  >
-                                    {typeof v === "number"
-                                      ? v.toLocaleString()
-                                      : v}
-                                  </td>
-                                ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {/* Heatmap: Correlation Matrix */}
-          {report.correlations.length > 0 &&
-            (() => {
-              const numCols = Array.from(
-                new Set(report.correlations.flatMap((c) => [c.col1, c.col2])),
-              );
-              const size = numCols.length;
-              const cellSize = Math.max(
-                42,
-                Math.min(70, Math.floor(500 / Math.max(size, 1))),
-              );
-              const labelW = 90;
-              const svgW = labelW + size * cellSize;
-              const svgH = labelW + size * cellSize;
-              const getCorr = (a: string, b: string) => {
-                if (a === b) return 1;
-                const found = report.correlations.find(
-                  (c) =>
-                    (c.col1 === a && c.col2 === b) ||
-                    (c.col1 === b && c.col2 === a),
-                );
-                return found ? found.r : null;
-              };
-              const corrColor = (r: number | null) => {
-                if (r === null) return "#1e2030";
-                if (r >= 0.8) return "#d97706";
-                if (r >= 0.4) return "#92400e";
-                if (r >= 0) return "#374151";
-                if (r >= -0.4) return "#1e3a5f";
-                return "#1d4ed8";
-              };
-              return (
-                <Section
-                  title="Correlation Heatmap"
-                  icon={<BarChart3 size={15} />}
-                  accent="indigo"
-                >
-                  <p className="text-xs text-muted-foreground font-mono mb-4">
-                    Visual correlation matrix between numeric columns. Orange =
-                    positive, Blue = negative, Gray = near zero.
-                  </p>
-                  <div className="overflow-x-auto">
-                    <svg
-                      width={svgW}
-                      height={svgH}
-                      style={{ fontFamily: "monospace" }}
-                      role="img"
-                      aria-label="Correlation heatmap matrix"
-                    >
-                      {numCols.map((col, ci) => (
-                        <text
-                          key={`ctop-${col}`}
-                          x={labelW + ci * cellSize + cellSize / 2}
-                          y={labelW - 8}
-                          textAnchor="end"
-                          transform={`rotate(-45 ${labelW + ci * cellSize + cellSize / 2} ${labelW - 8})`}
-                          fill="#94a3b8"
-                          fontSize={Math.min(11, cellSize * 0.22)}
-                        >
-                          {col.length > 12 ? `${col.slice(0, 12)}…` : col}
-                        </text>
-                      ))}
-                      {numCols.map((row, ri) => (
-                        <text
-                          key={`crow-${row}`}
-                          x={labelW - 6}
-                          y={labelW + ri * cellSize + cellSize / 2 + 4}
-                          textAnchor="end"
-                          fill="#94a3b8"
-                          fontSize={Math.min(11, cellSize * 0.22)}
-                        >
-                          {row.length > 12 ? `${row.slice(0, 12)}…` : row}
-                        </text>
-                      ))}
-                      {numCols.map((row, ri) =>
-                        numCols.map((col, ci) => {
-                          const r = getCorr(row, col);
-                          return (
-                            <g key={`cell-${row}-${col}`}>
-                              <rect
-                                x={labelW + ci * cellSize}
-                                y={labelW + ri * cellSize}
-                                width={cellSize - 2}
-                                height={cellSize - 2}
-                                rx={4}
-                                fill={corrColor(r)}
-                              />
-                              {r !== null && cellSize >= 44 && (
-                                <text
-                                  x={labelW + ci * cellSize + cellSize / 2 - 1}
-                                  y={labelW + ri * cellSize + cellSize / 2 + 4}
-                                  textAnchor="middle"
-                                  fill="rgba(255,255,255,0.85)"
-                                  fontSize={Math.min(10, cellSize * 0.2)}
-                                  fontWeight="600"
-                                >
-                                  {r.toFixed(2)}
-                                </text>
-                              )}
-                            </g>
-                          );
-                        }),
-                      )}
-                    </svg>
-                  </div>
-                  <div className="flex flex-wrap gap-4 mt-3 text-[10px] font-mono text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="w-3 h-3 rounded inline-block"
-                        style={{ background: "#1d4ed8" }}
-                      />
-                      Strong negative
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="w-3 h-3 rounded inline-block"
-                        style={{ background: "#374151" }}
-                      />
-                      Near zero
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="w-3 h-3 rounded inline-block"
-                        style={{ background: "#d97706" }}
-                      />
-                      Strong positive
-                    </span>
-                  </div>
-                </Section>
-              );
-            })()}
-
-          {/* Step 6: KPIs */}
-          <Section
-            title="6. Key Performance Indicators"
-            icon={<TrendingUp size={15} />}
-            accent="green"
-          >
-            {report.kpis.length === 0 ? (
-              <div className="text-sm text-muted-foreground font-mono py-4 text-center">
-                No KPI columns detected.
-              </div>
-            ) : (
-              <KPIChips report={report} />
-            )}
-          </Section>
-
-          {/* Pie Chart: Distribution */}
-          {(() => {
-            const catCol = report.columnStats.find(
-              (cs) =>
-                cs.type === "text" && cs.topValues && cs.topValues.length > 1,
-            );
-            if (!catCol || !catCol.topValues) return null;
-            const slices = catCol.topValues.slice(0, 6);
-            const total = slices.reduce((s, v) => s + v.count, 0);
-            const COLORS = [
-              "#6366f1",
-              "#14b8a6",
-              "#f59e0b",
-              "#22c55e",
-              "#ef4444",
-              "#8b5cf6",
-            ];
-            let cumAngle = -Math.PI / 2;
-            const cx = 120;
-            const cy = 120;
-            const r = 95;
-            const paths = slices.map((v, i) => {
-              const angle = (v.count / total) * 2 * Math.PI;
-              const x1 = cx + r * Math.cos(cumAngle);
-              const y1 = cy + r * Math.sin(cumAngle);
-              cumAngle += angle;
-              const x2 = cx + r * Math.cos(cumAngle);
-              const y2 = cy + r * Math.sin(cumAngle);
-              const large = angle > Math.PI ? 1 : 0;
-              return {
-                path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`,
-                color: COLORS[i],
-                pct: ((v.count / total) * 100).toFixed(1),
-                label: v.value,
-              };
-            });
-            return (
-              <Section
-                title="Distribution Chart"
-                icon={<PieChart size={15} />}
-                accent="teal"
-              >
-                <p className="text-xs text-muted-foreground font-mono mb-4">
-                  Distribution of{" "}
-                  <span className="text-cfo-teal">{catCol.name}</span> — top{" "}
-                  {slices.length} categories shown.
-                </p>
-                <div className="flex flex-col sm:flex-row items-center gap-8">
-                  <svg
-                    width="240"
-                    height="240"
-                    viewBox="0 0 240 240"
-                    role="img"
-                    aria-label="Distribution pie chart"
-                  >
-                    {paths.map((p) => (
-                      <path
-                        key={`pie-${p.label}`}
-                        d={p.path}
-                        fill={p.color}
-                        stroke="#0f1117"
-                        strokeWidth="2"
-                        opacity="0.92"
-                      />
-                    ))}
-                    <circle cx={cx} cy={cy} r={38} fill="#0f1117" />
-                    <text
-                      x={cx}
-                      y={cy - 4}
-                      textAnchor="middle"
-                      fill="#94a3b8"
-                      fontSize="10"
-                      fontFamily="monospace"
-                    >
-                      Total
-                    </text>
-                    <text
-                      x={cx}
-                      y={cy + 12}
-                      textAnchor="middle"
-                      fill="white"
-                      fontSize="13"
-                      fontFamily="monospace"
-                      fontWeight="700"
-                    >
-                      {total.toLocaleString()}
-                    </text>
-                  </svg>
-                  <div className="space-y-2 flex-1 min-w-0">
-                    {paths.map((p) => (
+                  {metrics.map((row) => (
+                    <>
                       <div
-                        key={`leg-${p.label}`}
-                        className="flex items-center gap-3"
+                        key={`${row}_label`}
+                        className="flex items-center text-xs font-semibold text-muted-foreground pr-2"
                       >
-                        <span
-                          className="w-3 h-3 rounded-sm shrink-0"
-                          style={{ background: p.color }}
-                        />
-                        <span className="text-xs font-mono text-foreground truncate flex-1">
-                          {p.label}
-                        </span>
-                        <span className="text-xs font-mono text-muted-foreground shrink-0">
-                          {p.pct}%
-                        </span>
+                        {row}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </Section>
-            );
-          })()}
-
-          {/* Step 7: Insights */}
-          <Section
-            title="7. Critical Insights"
-            icon={<Lightbulb size={15} />}
-            accent="amber"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {report.insights.map((insight) => (
-                <InsightCard key={insight.title} insight={insight} />
-              ))}
-            </div>
-          </Section>
-
-          {/* Step 8: Pareto */}
-          <Section
-            title="8. Pareto Analysis (80/20 Rule)"
-            icon={<BarChart3 size={15} />}
-            accent="indigo"
-          >
-            {report.pareto ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-secondary/30 rounded-md p-3">
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                      Analyzed Column
-                    </div>
-                    <div className="text-sm font-mono font-bold text-cfo-indigo mt-1">
-                      {report.pareto.column}
-                    </div>
-                  </div>
-                  <div className="bg-secondary/30 rounded-md p-3">
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                      Top 20% Rows
-                    </div>
-                    <div className="text-xl font-mono font-bold text-foreground mt-1">
-                      {report.pareto.top20PctRows}
-                    </div>
-                  </div>
-                  <div className="bg-secondary/30 rounded-md p-3">
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                      Top 20% Value Share
-                    </div>
-                    <div
-                      className={cn(
-                        "text-xl font-mono font-bold mt-1",
-                        report.pareto.top20PctShare > 0.7
-                          ? "text-cfo-amber"
-                          : "text-cfo-green",
-                      )}
-                    >
-                      {(report.pareto.top20PctShare * 100).toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className="bg-secondary/30 rounded-md p-3">
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                      Rows for 80% Value
-                    </div>
-                    <div className="text-xl font-mono font-bold text-foreground mt-1">
-                      {report.pareto.rows80PctValue}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={cn(
-                    "p-4 rounded-md text-sm font-mono",
-                    report.pareto.top20PctShare > 0.75
-                      ? "bg-cfo-amber/10 text-cfo-amber border border-cfo-amber/20"
-                      : "bg-cfo-green/10 text-cfo-green border border-cfo-green/20",
-                  )}
-                >
-                  {report.pareto.top20PctShare > 0.75
-                    ? `⚠ Strong Pareto concentration: The top 20% of rows (${report.pareto.top20PctRows}) drive ${(report.pareto.top20PctShare * 100).toFixed(0)}% of total ${report.pareto.column} — classic 80/20 pattern confirmed.`
-                    : `✓ ${report.pareto.rows80PctValue} rows (${(report.pareto.rows80PctShare * 100).toFixed(0)}% of data) account for 80% of total ${report.pareto.column} value. Distribution is relatively balanced.`}
+                      {metrics.map((col) => {
+                        const cell = result.heatmapData.find(
+                          (d) => d.row === row && d.col === col,
+                        );
+                        return (
+                          <HeatmapCell
+                            key={col}
+                            value={cell ? cell.value : 0}
+                          />
+                        );
+                      })}
+                    </>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <div className="text-sm text-muted-foreground font-mono py-4 text-center">
-                No numeric columns available for Pareto analysis.
+              <div className="flex items-center gap-6 mt-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded"
+                    style={{ background: "rgba(99,102,241,0.9)" }}
+                  />
+                  Strong Positive Correlation
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded"
+                    style={{ background: "rgba(244,63,94,0.9)" }}
+                  />
+                  Negative Correlation
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded"
+                    style={{ background: "rgba(99,102,241,0.2)" }}
+                  />
+                  Weak Correlation
+                </div>
               </div>
-            )}
-          </Section>
-
-          {/* Step 9: Visualizations */}
-          <Section
-            title="9. Visualization Recommendations"
-            icon={<LineChart size={15} />}
-            accent="teal"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {report.visualizationSuggestions.map((v) => (
-                <div
-                  key={v.title}
-                  className="border border-border rounded-md p-4 hover:border-cfo-indigo/40 transition-colors"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <BarChart3 size={13} className="text-cfo-indigo" />
-                    <span className="text-xs font-mono font-semibold text-cfo-indigo uppercase tracking-wider">
-                      {v.type}
-                    </span>
-                  </div>
-                  <div className="text-sm font-medium text-foreground mb-1">
-                    {v.title}
-                  </div>
-                  {(v.x || v.y) && (
-                    <div className="text-[11px] font-mono text-muted-foreground mb-2">
-                      {v.x && (
-                        <span>
-                          X: <span className="text-cfo-teal">{v.x}</span>
-                        </span>
-                      )}
-                      {v.x && v.y && <span className="mx-1">·</span>}
-                      {v.y && (
-                        <span>
-                          Y: <span className="text-cfo-teal">{v.y}</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground leading-relaxed">
-                    {v.reason}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Section>
-
-          {/* Step 10: Executive Summary */}
-          <Section
-            title="10. Executive Summary"
-            icon={<Info size={15} />}
-            accent="indigo"
-          >
-            <div className="space-y-4">
-              {[
-                {
-                  label: "Overall Performance",
-                  content: report.executiveSummary.overallPerformance,
-                  color: "section-border-indigo",
-                },
-                {
-                  label: "Key Drivers",
-                  content: report.executiveSummary.keyDrivers,
-                  color: "section-border-teal",
-                },
-                {
-                  label: "Recommendations",
-                  content: report.executiveSummary.recommendations,
-                  color: "section-border-green",
-                },
-              ].map(({ label, content, color }) => (
-                <div key={label} className={cn("pl-4 py-2", color)}>
-                  <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-1">
-                    {label}
-                  </div>
-                  <p className="text-sm text-foreground leading-relaxed">
-                    {content}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Section>
-        </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

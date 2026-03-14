@@ -10,10 +10,11 @@ import {
   Save,
   Scale,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
+import { loadFinancialPrefill } from "../../utils/financialSync";
 import { formatCurrency, formatNumber } from "../../utils/formatters";
 
 interface BSData {
@@ -186,6 +187,23 @@ function SectionHeader({
 export function BalanceSheetPage() {
   const [data, setData] = useState<BSData>(INITIAL_BS);
   const createReport = useCreateReportSession();
+
+  useEffect(() => {
+    const prefill = loadFinancialPrefill();
+    if (prefill) {
+      setData((prev) => ({
+        ...prev,
+        cash: prefill.cash || prev.cash,
+        accountsReceivable: prefill.revenue || prev.accountsReceivable,
+      }));
+      if (prefill.cash) {
+        toast.info(
+          `Auto-filled cash & accounts receivable from ${prefill.billCount} saved bill${prefill.billCount > 1 ? "s" : ""}. Review and adjust as needed.`,
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const set = useCallback(
     (key: keyof BSData) => (val: string) => {

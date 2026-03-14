@@ -12,23 +12,32 @@ export function formatPct(value: number): string {
   return `${Math.round(value)}%`;
 }
 
+function toIST(date: Date): Date {
+  // IST is UTC+5:30
+  const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+  return new Date(utc + 5.5 * 3600000);
+}
+
 export function formatDate(timestamp: bigint): string {
   const ms = Number(timestamp) / 1_000_000; // nanoseconds to ms
-  return new Date(ms).toLocaleDateString("en-US", {
+  const ist = toIST(new Date(ms));
+  return ist.toLocaleDateString("en-IN", {
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 }
 
 export function formatDatetime(timestamp: bigint): string {
   const ms = Number(timestamp) / 1_000_000;
-  return new Date(ms).toLocaleString("en-US", {
+  return new Date(ms).toLocaleString("en-IN", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Kolkata",
   });
 }
 

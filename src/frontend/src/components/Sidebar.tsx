@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  BarChart2,
   BarChart3,
   BrainCircuit,
   Calculator,
+  Clock,
   FileText,
   History,
   LayoutDashboard,
@@ -17,6 +19,7 @@ import {
   User,
   X,
 } from "lucide-react";
+import { useISTClock } from "../hooks/useISTClock";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 export type PageId =
@@ -28,7 +31,8 @@ export type PageId =
   | "gst"
   | "history"
   | "item-catalog"
-  | "bill-generator";
+  | "bill-generator"
+  | "growth-charts";
 
 interface NavItem {
   id: PageId;
@@ -49,6 +53,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "AI Data Analyst",
     icon: <BarChart3 size={16} />,
     color: "text-cfo-teal",
+  },
+  {
+    id: "growth-charts",
+    label: "Growth Charts",
+    icon: <BarChart2 size={16} />,
+    color: "text-cfo-green",
   },
   {
     id: "pl",
@@ -108,6 +118,7 @@ export function Sidebar({
   onToggle,
 }: SidebarProps) {
   const { login, clear, loginStatus, identity } = useInternetIdentity();
+  const { istTime, istDate } = useISTClock();
   const isLoggedIn = !!identity;
   const principal = identity?.getPrincipal().toString();
   const shortPrincipal = principal
@@ -252,6 +263,24 @@ export function Sidebar({
                 : "Connect Wallet"}
             </Button>
           )}
+
+          {/* IST Clock Widget */}
+          <div className="flex items-center gap-2 px-2 py-2 rounded-md bg-cfo-indigo/5 border border-cfo-indigo/15">
+            <Clock size={12} className="text-cfo-indigo shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-mono font-semibold text-foreground tracking-wider">
+                  {istTime}
+                </span>
+                <span className="text-[9px] font-mono bg-cfo-indigo/20 text-cfo-indigo px-1 py-0.5 rounded uppercase tracking-wider">
+                  IST
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-muted-foreground truncate">
+                {istDate}
+              </div>
+            </div>
+          </div>
 
           <div className="px-2 text-[10px] text-muted-foreground leading-relaxed">
             © {new Date().getFullYear()}. Built with{" "}

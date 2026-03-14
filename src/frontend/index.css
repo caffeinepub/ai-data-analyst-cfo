@@ -242,6 +242,89 @@
     .print-only { display: block !important; }
     body { background: white !important; color: black !important; }
     .sidebar { display: none !important; }
+
+    /* Bill Generator: force single page, scale down to fit */
+    @page {
+      size: A4 portrait;
+      margin: 6mm;
+    }
+    html, body {
+      width: 100%;
+      height: auto;
+      font-size: 10px !important;
+    }
+    /* Hide sidebar and nav, show only bill content */
+    .bill-print-root {
+      font-size: 10px !important;
+      line-height: 1.3 !important;
+      /* Scale entire bill to fit A4 */
+      transform-origin: top left;
+      width: 100%;
+      zoom: 0.72;
+    }
+    /* Stack columns vertically for single-page print */
+    .bill-print-root .grid {
+      display: block !important;
+    }
+    .bill-print-root .lg\:col-span-2 {
+      width: 100% !important;
+    }
+    /* Prevent sticky positioning issues */
+    .bill-print-root .sticky {
+      position: static !important;
+    }
+    .bill-print-root h1 {
+      font-size: 14px !important;
+    }
+    .bill-print-root h2,
+    .bill-print-root h3 {
+      font-size: 11px !important;
+    }
+    .bill-print-root table {
+      font-size: 9px !important;
+    }
+    .bill-print-root td,
+    .bill-print-root th {
+      padding: 2px 4px !important;
+    }
+    .bill-print-root .text-2xl,
+    .bill-print-root .text-3xl {
+      font-size: 14px !important;
+    }
+    .bill-print-root .text-sm {
+      font-size: 9px !important;
+    }
+    .bill-print-root .text-xs {
+      font-size: 8px !important;
+    }
+    .bill-print-root .p-5,
+    .bill-print-root .p-6,
+    .bill-print-root .lg\:p-8 {
+      padding: 8px !important;
+    }
+    .bill-print-root .space-y-5 > * + *,
+    .bill-print-root .space-y-6 > * + * {
+      margin-top: 6px !important;
+    }
+    .bill-print-root .gap-6 {
+      gap: 6px !important;
+    }
+    /* Prevent page breaks inside bill sections */
+    .bill-print-root .bg-card,
+    .bill-print-root table,
+    .bill-print-root tbody,
+    .bill-print-root tr {
+      page-break-inside: avoid;
+    }
+    /* Bill summary panel: avoid page break */
+    .bill-print-root .sticky {
+      page-break-inside: avoid;
+    }
+    /* Remove shadows and decorative borders for cleaner print */
+    * {
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
   }
 
   .print-only { display: none; }

@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { DollarSign, Loader2, Printer, Save, TrendingUp } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
+import { loadFinancialPrefill } from "../../utils/financialSync";
 import { formatCurrency } from "../../utils/formatters";
 
 interface CFData {
@@ -195,6 +196,23 @@ function SectionHeader({
 export function CashFlowPage() {
   const [data, setData] = useState<CFData>(INITIAL_CF);
   const createReport = useCreateReportSession();
+
+  useEffect(() => {
+    const prefill = loadFinancialPrefill();
+    if (prefill) {
+      setData((prev) => ({
+        ...prev,
+        netIncome: prefill.netIncome || prev.netIncome,
+        openingCash: prefill.cash || prev.openingCash,
+      }));
+      if (prefill.netIncome) {
+        toast.info(
+          `Auto-filled net income & cash from ${prefill.billCount} saved bill${prefill.billCount > 1 ? "s" : ""}. Review and adjust as needed.`,
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const set = useCallback(
     (key: keyof CFData) => (val: string) => {
