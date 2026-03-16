@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { DollarSign, Loader2, Printer, Save, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "../../contexts/AuthContext";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
 import { loadFinancialPrefill } from "../../utils/financialSync";
@@ -196,6 +197,7 @@ function SectionHeader({
 export function CashFlowPage() {
   const [data, setData] = useState<CFData>(INITIAL_CF);
   const createReport = useCreateReportSession();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const prefill = loadFinancialPrefill();
@@ -317,7 +319,7 @@ export function CashFlowPage() {
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={createReport.isPending}
+            disabled={createReport.isPending || !isAuthenticated}
             className="gap-2 text-xs bg-cfo-indigo hover:bg-cfo-indigo/90 text-white"
           >
             {createReport.isPending ? (

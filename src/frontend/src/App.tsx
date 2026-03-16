@@ -1,18 +1,22 @@
 import { Toaster } from "@/components/ui/sonner";
 import { useState } from "react";
+import { GuestBanner } from "./components/GuestBanner";
+import { LoginModal } from "./components/LoginModal";
 import { type PageId, Sidebar } from "./components/Sidebar";
 import { BalanceSheetPage } from "./components/pages/BalanceSheetPage";
 import { BillGeneratorPage } from "./components/pages/BillGeneratorPage";
+import { BusinessHistoryPage } from "./components/pages/BusinessHistoryPage";
 import { CashFlowPage } from "./components/pages/CashFlowPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { DataAnalystPage } from "./components/pages/DataAnalystPage";
 import { GSTPage } from "./components/pages/GSTPage";
-import { GrowthChartsPage } from "./components/pages/GrowthChartsPage";
 import { HistoryPage } from "./components/pages/HistoryPage";
 import { ItemCatalogPage } from "./components/pages/ItemCatalogPage";
 import { PLPage } from "./components/pages/PLPage";
+import { YearAnalystPage } from "./components/pages/YearAnalystPage";
+import { AuthProvider } from "./contexts/AuthContext";
 
-export default function App() {
+function AppInner() {
   const [currentPage, setCurrentPage] = useState<PageId>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -22,8 +26,10 @@ export default function App() {
         return <DashboardPage onNavigate={setCurrentPage} />;
       case "analyst":
         return <DataAnalystPage />;
-      case "growth-charts":
-        return <GrowthChartsPage />;
+      case "year-analyst":
+        return <YearAnalystPage />;
+      case "business-history":
+        return <BusinessHistoryPage />;
       case "pl":
         return <PLPage />;
       case "balance-sheet":
@@ -44,16 +50,20 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden dark">
-      <Sidebar
-        currentPage={currentPage}
-        onNavigate={setCurrentPage}
-        open={sidebarOpen}
-        onToggle={() => setSidebarOpen((prev) => !prev)}
-      />
-      <main className="flex-1 overflow-y-auto min-w-0">
-        <div className="pt-14 lg:pt-0">{renderPage()}</div>
-      </main>
+    <div className="flex flex-col h-screen bg-background overflow-hidden dark">
+      <GuestBanner />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          open={sidebarOpen}
+          onToggle={() => setSidebarOpen((prev) => !prev)}
+        />
+        <main className="flex-1 overflow-y-auto min-w-0">
+          <div className="pt-14 lg:pt-0">{renderPage()}</div>
+        </main>
+      </div>
+      <LoginModal />
       <Toaster
         theme="dark"
         position="bottom-right"
@@ -66,5 +76,13 @@ export default function App() {
         }}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 }

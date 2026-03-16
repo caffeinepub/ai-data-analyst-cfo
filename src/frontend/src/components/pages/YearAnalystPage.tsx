@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Award,
   BarChart2,
+  CalendarDays,
   Database,
   Download,
   PieChartIcon,
@@ -36,7 +37,7 @@ import { toast } from "sonner";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   ANALYST_DATA_KEY,
-  buildAnalystCSV,
+  buildYearlyAnalystCSV,
   loadBusinessHistory,
   loadSavedBills,
 } from "../../utils/financialSync";
@@ -53,7 +54,7 @@ const CHART_COLORS = [
 ];
 
 interface ParsedRow {
-  month: string;
+  month: string; // reusing field name but contains year label
   revenue: number;
   expenses: number;
   operatingExpenses: number;
@@ -85,7 +86,7 @@ function parseCSV(csv: string): ParsedRow[] {
   const findCol = (names: string[]) =>
     headers.findIndex((h) => names.some((n) => h.includes(n)));
 
-  const monthIdx = findCol(["month", "year", "date", "period"]);
+  const monthIdx = findCol(["year", "month", "date", "period"]);
   const revenueIdx = findCol(["revenue", "sales", "income"]);
   const expensesIdx = findCol(["expense", "cost"]);
   const profitIdx = findCol(["profit", "net"]);
@@ -242,13 +243,13 @@ function HeatmapCell({ value }: { value: number }) {
   );
 }
 
-export function DataAnalystPage() {
+export function YearAnalystPage() {
   const { isAuthenticated, openLoginModal } = useAuth();
   const [csvText, setCsvText] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
 
-  function loadBusinessData() {
+  function loadYearlyData() {
     const bills = loadSavedBills();
     const history = loadBusinessHistory();
     if (bills.length === 0 && history.length === 0) {
@@ -257,7 +258,7 @@ export function DataAnalystPage() {
       );
       return;
     }
-    const csv = buildAnalystCSV(bills);
+    const csv = buildYearlyAnalystCSV(bills);
     setCsvText(csv);
     setError("");
     const sources: string[] = [];
@@ -267,13 +268,13 @@ export function DataAnalystPage() {
       sources.push(
         `${history.length} history record${history.length > 1 ? "s" : ""}`,
       );
-    toast.success(`Loaded data from ${sources.join(" and ")}.`);
+    toast.success(`Loaded yearly data from ${sources.join(" and ")}.`);
   }
 
-  // Auto-load bill data on mount
+  // Auto-load on mount
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only load
   useEffect(() => {
-    loadBusinessData();
+    loadYearlyData();
   }, []);
 
   function analyze_data() {
@@ -291,8 +292,8 @@ export function DataAnalystPage() {
 
   function handleSaveAnalysis() {
     if (!csvText.trim()) return;
-    localStorage.setItem(ANALYST_DATA_KEY, csvText);
-    toast.success("Analysis data saved successfully.");
+    localStorage.setItem(`${ANALYST_DATA_KEY}_yearly`, csvText);
+    toast.success("Yearly analysis data saved successfully.");
   }
 
   function handlePrintAnalysis() {
@@ -307,14 +308,14 @@ export function DataAnalystPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
-            <Activity className="h-6 w-6 text-primary" />
+            <CalendarDays className="h-6 w-6 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              AI Data Analyst
+              Year-to-Year Data Analyst
             </h1>
             <p className="text-sm text-muted-foreground">
-              Monthly analysis — auto-loaded from your saved bills
+              Annual analysis — auto-aggregated from your saved bills by year
             </p>
           </div>
         </div>
@@ -327,7 +328,7 @@ export function DataAnalystPage() {
                 !isAuthenticated ? openLoginModal() : handleSaveAnalysis()
               }
               className="gap-2 text-xs"
-              data-ocid="analyst.save_button"
+              data-ocid="year-analyst.save_button"
             >
               <Download className="h-3.5 w-3.5" />
               Save Analysis
@@ -337,7 +338,7 @@ export function DataAnalystPage() {
               size="sm"
               onClick={handlePrintAnalysis}
               className="gap-2 text-xs"
-              data-ocid="analyst.print_button"
+              data-ocid="year-analyst.print_button"
             >
               <Printer className="h-3.5 w-3.5" />
               Print Report
@@ -351,26 +352,26 @@ export function DataAnalystPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Database className="h-4 w-4 text-primary" />
-            Business Data Input
+            Yearly Business Data Input
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div>
             <Label className="text-xs text-muted-foreground mb-1 block">
-              Paste CSV data (columns: Month, Revenue, Expenses, NetProfit,
-              Category) — or load directly from saved bills
+              Paste CSV data (columns: Year, Revenue, Expenses, NetProfit,
+              Category) — or load directly from saved bills grouped by year
             </Label>
             <Textarea
-              data-ocid="analyst.input"
+              data-ocid="year-analyst.input"
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
-              placeholder="Month,Revenue,Expenses,NetProfit,Category&#10;Jan-2024,820000,560000,260000,Electronics"
+              placeholder="Year,Revenue,Expenses,NetProfit,Category&#10;2024,9840000,6720000,3120000,Electronics"
               className="font-mono text-xs min-h-[140px] bg-background/50"
             />
           </div>
           {error && (
             <div
-              data-ocid="analyst.error_state"
+              data-ocid="year-analyst.error_state"
               className="flex items-center gap-2 text-destructive text-sm"
             >
               <AlertTriangle className="h-4 w-4" />
@@ -379,16 +380,16 @@ export function DataAnalystPage() {
           )}
           <div className="flex gap-3 flex-wrap">
             <Button
-              data-ocid="analyst.load_business_button"
+              data-ocid="year-analyst.load_business_button"
               variant="outline"
-              onClick={loadBusinessData}
+              onClick={loadYearlyData}
               className="gap-2"
             >
               <Database className="h-4 w-4" />
-              Load Business Data
+              Load Yearly Data
             </Button>
             <Button
-              data-ocid="analyst.submit_button"
+              data-ocid="year-analyst.submit_button"
               onClick={analyze_data}
               disabled={!csvText.trim()}
               className="gap-2"
@@ -407,7 +408,7 @@ export function DataAnalystPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Award className="h-5 w-5 text-primary" />
-                Business Summary
+                Business Summary (Year-to-Year)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -438,7 +439,7 @@ export function DataAnalystPage() {
                 </div>
                 <div className="bg-muted/30 rounded-lg p-4">
                   <p className="text-xs text-muted-foreground mb-1">
-                    Total Months
+                    Total Years
                   </p>
                   <p className="text-xl font-bold">{result.rows.length}</p>
                 </div>
@@ -449,7 +450,7 @@ export function DataAnalystPage() {
                   <TrendingUp className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-green-400 font-semibold uppercase tracking-wider mb-1">
-                      Best Month
+                      Best Year
                     </p>
                     <p className="font-bold text-lg">
                       {result.bestMonth.month}
@@ -467,7 +468,7 @@ export function DataAnalystPage() {
                   <TrendingDown className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-red-400 font-semibold uppercase tracking-wider mb-1">
-                      Worst Month
+                      Worst Year
                     </p>
                     <p className="font-bold text-lg">
                       {result.worstMonth.month}
@@ -493,7 +494,7 @@ export function DataAnalystPage() {
                           variant="outline"
                           className="text-primary border-primary/40 text-xs"
                         >
-                          CAGR: {result.cagr.toFixed(1)}% / period
+                          CAGR: {result.cagr.toFixed(1)}% / year
                         </Badge>
                       </div>
                     )}
@@ -529,7 +530,7 @@ export function DataAnalystPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrendingUp className="h-4 w-4 text-indigo-400" />
-                  Revenue Growth
+                  Year-over-Year Revenue Growth
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -542,6 +543,13 @@ export function DataAnalystPage() {
                     <XAxis
                       dataKey="month"
                       tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      label={{
+                        value: "Year",
+                        position: "insideBottom",
+                        offset: -2,
+                        fill: "#94a3b8",
+                        fontSize: 11,
+                      }}
                     />
                     <YAxis
                       tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
@@ -573,7 +581,7 @@ export function DataAnalystPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrendingUp className="h-4 w-4 text-emerald-400" />
-                  Net Profit Growth
+                  Year-over-Year Net Profit Growth
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -656,12 +664,12 @@ export function DataAnalystPage() {
               </CardContent>
             </Card>
 
-            {/* 4. MoM Growth */}
+            {/* 4. YoY Growth */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="h-4 w-4 text-cyan-400" />
-                  Month-over-Month Growth %
+                  Year-over-Year Growth %
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -680,7 +688,7 @@ export function DataAnalystPage() {
                       tick={{ fontSize: 11, fill: "#94a3b8" }}
                     />
                     <Tooltip
-                      formatter={(v: number) => [`${v}%`, "MoM Growth"]}
+                      formatter={(v: number) => [`${v}%`, "YoY Growth"]}
                       contentStyle={{
                         background: "#1e293b",
                         border: "1px solid #334155",
@@ -751,7 +759,7 @@ export function DataAnalystPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrendingUp className="h-4 w-4 text-green-400" />
-                  Revenue Growth %
+                  Year-over-Year Revenue Growth %
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -798,7 +806,7 @@ export function DataAnalystPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <TrendingUp className="h-4 w-4 text-orange-400" />
-                  Profit Margin Trend
+                  Annual Profit Margin Trend
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -848,7 +856,7 @@ export function DataAnalystPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <BarChart2 className="h-4 w-4 text-pink-400" />
-                  Revenue vs Net Profit
+                  Annual Revenue vs Net Profit
                 </CardTitle>
               </CardHeader>
               <CardContent>

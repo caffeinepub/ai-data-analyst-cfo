@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Calculator, Loader2, Plus, Printer, Save, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "../../contexts/AuthContext";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
 import { formatCurrency } from "../../utils/formatters";
@@ -52,6 +53,7 @@ export function GSTPage() {
   ]);
 
   const createReport = useCreateReportSession();
+  const { isAuthenticated, openLoginModal } = useAuth();
 
   const effectiveRate = gstRate === "custom" ? n(customRate) : n(gstRate);
   const inputAmount = n(amount);
@@ -174,7 +176,7 @@ export function GSTPage() {
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={createReport.isPending}
+            disabled={createReport.isPending || !isAuthenticated}
             className="gap-2 text-xs bg-cfo-indigo hover:bg-cfo-indigo/90 text-white"
           >
             {createReport.isPending ? (
@@ -410,7 +412,7 @@ export function GSTPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={addItem}
+              onClick={!isAuthenticated ? openLoginModal : addItem}
               className="gap-1.5 text-xs h-7"
             >
               <Plus size={11} />
@@ -494,7 +496,11 @@ export function GSTPage() {
                     <td className="px-2 py-1.5">
                       <button
                         type="button"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() =>
+                          !isAuthenticated
+                            ? openLoginModal()
+                            : removeItem(item.id)
+                        }
                         className="text-muted-foreground hover:text-destructive transition-colors"
                         disabled={items.length === 1}
                       >

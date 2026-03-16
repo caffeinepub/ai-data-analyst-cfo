@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  BarChart2,
   BarChart3,
   BrainCircuit,
   Calculator,
+  CalendarDays,
+  ClipboardList,
   Clock,
   FileText,
   History,
@@ -25,20 +26,22 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 export type PageId =
   | "dashboard"
   | "analyst"
+  | "year-analyst"
+  | "business-history"
   | "pl"
   | "balance-sheet"
   | "cash-flow"
   | "gst"
   | "history"
   | "item-catalog"
-  | "bill-generator"
-  | "growth-charts";
+  | "bill-generator";
 
 interface NavItem {
   id: PageId;
   label: string;
   icon: React.ReactNode;
   color: string;
+  badge?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -53,12 +56,21 @@ const NAV_ITEMS: NavItem[] = [
     label: "AI Data Analyst",
     icon: <BarChart3 size={16} />,
     color: "text-cfo-teal",
+    badge: "AI",
   },
   {
-    id: "growth-charts",
-    label: "Growth Charts",
-    icon: <BarChart2 size={16} />,
-    color: "text-cfo-green",
+    id: "year-analyst",
+    label: "Year Analyst",
+    icon: <CalendarDays size={16} />,
+    color: "text-cfo-teal",
+    badge: "YoY",
+  },
+  {
+    id: "business-history",
+    label: "Business History",
+    icon: <ClipboardList size={16} />,
+    color: "text-cfo-amber",
+    badge: "New",
   },
   {
     id: "pl",
@@ -214,9 +226,9 @@ export function Sidebar({
                       {item.icon}
                     </span>
                     <span className="truncate">{item.label}</span>
-                    {item.id === "analyst" && (
+                    {item.badge && (
                       <span className="ml-auto text-[9px] font-mono bg-cfo-teal/20 text-cfo-teal px-1.5 py-0.5 rounded uppercase tracking-wider">
-                        AI
+                        {item.badge}
                       </span>
                     )}
                   </button>

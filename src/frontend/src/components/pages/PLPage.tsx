@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { FileText, Loader2, Printer, Save, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "../../contexts/AuthContext";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
 import {
@@ -35,6 +36,9 @@ interface PLData {
   marketing: string;
   depreciation: string;
   otherOpex: string;
+  // Investing Expenses
+  capex: string;
+  otherInvestingExp: string;
   // Below the line
   interestExpense: string;
   taxRate: string;
@@ -52,6 +56,8 @@ const INITIAL_PL: PLData = {
   marketing: "",
   depreciation: "",
   otherOpex: "",
+  capex: "",
+  otherInvestingExp: "",
   interestExpense: "",
   taxRate: "25",
 };
@@ -180,6 +186,7 @@ function SectionHeader({
 export function PLPage() {
   const [data, setData] = useState<PLData>(INITIAL_PL);
   const createReport = useCreateReportSession();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const prefill = loadFinancialPrefill();
@@ -221,6 +228,11 @@ export function PLPage() {
   const depreciation = numVal(data.depreciation);
   const otherOpex = numVal(data.otherOpex);
   const totalOpex = salaries + rent + marketing + depreciation + otherOpex;
+
+  const capex = numVal(data.capex);
+  const otherInvestingExp = numVal(data.otherInvestingExp);
+  const totalInvestingExp = capex + otherInvestingExp;
+  const totalExpenses = totalOpex + totalInvestingExp;
 
   const ebitda = grossProfit - totalOpex;
   const interestExpense = numVal(data.interestExpense);
@@ -320,7 +332,7 @@ export function PLPage() {
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={createReport.isPending}
+            disabled={createReport.isPending || !isAuthenticated}
             className="gap-2 text-xs bg-cfo-indigo hover:bg-cfo-indigo/90 text-white"
           >
             {createReport.isPending ? (
@@ -409,6 +421,36 @@ export function PLPage() {
           <CalcRow
             label="Total Operating Expenses"
             value={totalOpex}
+            highlight
+          />
+
+          <div className="border-t border-border pt-4">
+            <SectionHeader title="Investing Expenses" color="indigo" />
+            <div className="space-y-3">
+              <NumInput
+                id="capex"
+                label="Capital Expenditure / Asset Purchases (₹)"
+                value={data.capex}
+                onChange={set("capex")}
+                hint="Equipment, machinery, infrastructure, land"
+              />
+              <NumInput
+                id="otherInvestingExp"
+                label="Other Investing Expenses (₹)"
+                value={data.otherInvestingExp}
+                onChange={set("otherInvestingExp")}
+              />
+            </div>
+          </div>
+
+          <CalcRow
+            label="Total Investing Expenses"
+            value={totalInvestingExp}
+            highlight
+          />
+          <CalcRow
+            label="Total Expenses (Operating + Investing)"
+            value={totalExpenses}
             highlight
           />
         </div>

@@ -21,12 +21,16 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "../../contexts/AuthContext";
 import { formatCurrency } from "../../utils/formatters";
 
 const STORAGE_KEY = "cfo_item_catalog";
 const MAX_ITEMS = 50;
 const GST_RATES = ["0", "5", "12", "18", "28"];
 const CATEGORIES = [
+  "Cement",
+  "Steel",
+  "Stone",
   "Electronics",
   "Clothing",
   "Food & Beverage",
@@ -79,6 +83,7 @@ const EMPTY_FORM: Omit<CatalogItem, "id"> = {
 };
 
 export function ItemCatalogPage() {
+  const { isAuthenticated, openLoginModal } = useAuth();
   const [items, setItems] = useState<CatalogItem[]>(loadItems);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -178,11 +183,15 @@ export function ItemCatalogPage() {
           {items.length < MAX_ITEMS && (
             <Button
               size="sm"
-              onClick={() => {
-                setEditId(null);
-                setForm(EMPTY_FORM);
-                setShowForm(true);
-              }}
+              onClick={() =>
+                !isAuthenticated
+                  ? openLoginModal()
+                  : (() => {
+                      setEditId(null);
+                      setForm(EMPTY_FORM);
+                      setShowForm(true);
+                    })()
+              }
               className="gap-2 text-xs bg-cfo-amber hover:bg-cfo-amber/90 text-black"
               data-ocid="catalog.open_modal_button"
             >
@@ -394,7 +403,9 @@ export function ItemCatalogPage() {
           <div className="flex gap-2 pt-2">
             <Button
               size="sm"
-              onClick={handleAdd}
+              onClick={() =>
+                !isAuthenticated ? openLoginModal() : handleAdd()
+              }
               className="bg-cfo-amber hover:bg-cfo-amber/90 text-black gap-2 text-xs"
               data-ocid="catalog.save_button"
             >
@@ -529,7 +540,11 @@ export function ItemCatalogPage() {
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleEdit(item)}
+                          onClick={() =>
+                            !isAuthenticated
+                              ? openLoginModal()
+                              : handleEdit(item)
+                          }
                           className="text-muted-foreground hover:text-cfo-indigo transition-colors"
                           data-ocid={`catalog.edit_button.${idx + 1}`}
                         >
@@ -537,7 +552,11 @@ export function ItemCatalogPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() =>
+                            !isAuthenticated
+                              ? openLoginModal()
+                              : handleDelete(item.id)
+                          }
                           className="text-muted-foreground hover:text-destructive transition-colors"
                           data-ocid={`catalog.delete_button.${idx + 1}`}
                         >

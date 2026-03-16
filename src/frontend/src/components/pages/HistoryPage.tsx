@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import type { DatasetSession, ReportSession } from "../../backend.d";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   useDeleteDatasetSession,
   useDeleteReportSession,
@@ -236,6 +237,7 @@ export function HistoryPage() {
   const { data: datasetSessions = [], isLoading: datasetsLoading } =
     useGetAllDatasetSessions();
   const deleteReport = useDeleteReportSession();
+  const { isAuthenticated, openLoginModal } = useAuth();
   const deleteDataset = useDeleteDatasetSession();
 
   const filteredReports = reportSessions.filter(
@@ -308,7 +310,11 @@ export function HistoryPage() {
             size="sm"
             variant="ghost"
             className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-            onClick={() => handleDeleteReport(session.id)}
+            onClick={() =>
+              !isAuthenticated
+                ? openLoginModal()
+                : handleDeleteReport(session.id)
+            }
           >
             <Trash2 size={13} />
           </Button>
@@ -347,7 +353,11 @@ export function HistoryPage() {
             size="sm"
             variant="ghost"
             className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-            onClick={() => handleDeleteDataset(session.id)}
+            onClick={() =>
+              !isAuthenticated
+                ? openLoginModal()
+                : handleDeleteDataset(session.id)
+            }
           >
             <Trash2 size={13} />
           </Button>

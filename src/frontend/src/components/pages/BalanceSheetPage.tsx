@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "../../contexts/AuthContext";
 import { useCreateReportSession } from "../../hooks/useQueries";
 import { ReportType } from "../../hooks/useQueries";
 import { loadFinancialPrefill } from "../../utils/financialSync";
@@ -187,6 +188,7 @@ function SectionHeader({
 export function BalanceSheetPage() {
   const [data, setData] = useState<BSData>(INITIAL_BS);
   const createReport = useCreateReportSession();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const prefill = loadFinancialPrefill();
@@ -350,7 +352,7 @@ export function BalanceSheetPage() {
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={createReport.isPending}
+            disabled={createReport.isPending || !isAuthenticated}
             className="gap-2 text-xs bg-cfo-indigo hover:bg-cfo-indigo/90 text-white"
           >
             {createReport.isPending ? (
